@@ -11,11 +11,12 @@ from scipy.io import wavfile
 import torch
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-mtcnn = MTCNN(margin=40, keep_all=False, device=device)
+mtcnn = MTCNN(keep_all=False, device=device)
 
 def process_vid(file_name, subfolder):
   try:
-    subprocess.run(['ffmpeg', '-y', '-i', f'../temp/{subfolder}/{file_name}.mp4', '-ss', '00:00:05', '-frames:v', '16', '-q:v', '2', f'../temp/{file_name}_%02d.jpg', '-vn', '-t', '0.5', '-acodec', 'pcm_s16le', f'../temp/{file_name}_audio.wav'], check=True)
+    subprocess.run(['ffmpeg', '-loglevel', 'error', '-ss', '00:00:05', '-i', f'../temp/{subfolder}/{file_name}.mp4', '-frames:v', '16', '-q:v', '2', f'../temp/{file_name}_%02d.jpg'], check=True)
+    subprocess.run(['ffmpeg', '-loglevel', 'error', '-ss', '00:00:05', '-i', f'../temp/{subfolder}/{file_name}.mp4', '-vn', '-t', '0.5', '-acodec', 'pcm_s16le', f'../temp/{file_name}_audio.wav'], check=True)
   except subprocess.CalledProcessError:
     return False
   except FileNotFoundError:
@@ -28,6 +29,10 @@ def process_vid(file_name, subfolder):
       face_boxes, _ = mtcnn.detect(image)
       if face_boxes is not None:
         face_box = face_boxes[0].astype(int)
+        face_box[0] -= 80
+        face_box[1] -= 50
+        face_box[2] += 80
+        face_box[3] += 50
         break
 
   if (face_box is None):
@@ -43,8 +48,7 @@ def process_vid(file_name, subfolder):
 
   return True
 
-def save_vid_to_h5(file_name, label):
-  h5_path = '/mnt/c/cs228_data/full_dataset.h5'
+def save_vid_to_h5(file_name, label, h5_path):
   frames_16 = []
 
   for i in range(1,17):
@@ -82,8 +86,14 @@ def delete_preprocessed_files(file_name, subfolder):
 
 
 def main():
-  zip_file_path = '/mnt/c/Users/emily/Downloads/dfdc_train_part_00.zip'
+  # update file paths for each batch
+  h5_path = '/mnt/c/cs228_data/processed_data_00.h5'
+  with h5py.File(h5_path, 'w') as f:
+    print('created h5 file!')
+  zip_file_path = '/mnt/c/Users/Emily/Downloads/dfdc_train_part_00.zip'
   subfolder = 'dfdc_train_part_0'
+  # print(os.path.exists(zip_file_path))
+  # print(device)
 
   with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
     zip_file_names = zip_ref.namelist()
@@ -106,10 +116,10 @@ def main():
       else:
         label = 0
 
-      print(f'processing {label_string} video {file_name}...')
+      print(f'processing {label_string} ({label}) video {file_name}........')
       processed = process_vid(file_name, subfolder)
       if processed:
-        save_vid_to_h5(file_name, label)
+        save_vid_to_h5(file_name, label, h5_path)
         delete_preprocessed_files(file_name, subfolder)
         print(f'{file_name} processed and saved!')
       else: 
