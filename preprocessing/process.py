@@ -9,6 +9,7 @@ import numpy as np
 import json
 from scipy.io import wavfile
 import torch
+import sys
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 mtcnn = MTCNN(keep_all=False, device=device)
@@ -69,61 +70,82 @@ def save_vid_to_h5(file_name, label, h5_path):
     d2 = g.create_dataset('audio', data=audio_data, compression='gzip')
     g.attrs['label'] = label
 
-def delete_preprocessed_files(file_name, subfolder):
+def delete_preprocessed_files(file_name, subfolder, was_processed):
   raw_vid_path = f'../temp/{subfolder}/{file_name}.mp4'
   if os.path.exists(raw_vid_path):
     os.remove(raw_vid_path)
-  for i in range(1,17):
-    ith_jpeg_path = f'../temp/{file_name}_{i:02d}.jpg'
-    if os.path.exists(ith_jpeg_path):
-      os.remove(ith_jpeg_path)
-    ith_processed_jpeg_path = f'../temp/{file_name}_processed_{i:02d}.jpg'
-    if os.path.exists(ith_processed_jpeg_path):
-      os.remove(ith_processed_jpeg_path)
-  audio_path = f'../temp/{file_name}_audio.wav'
-  if os.path.exists(audio_path):
-    os.remove(audio_path)
+  if (was_processed):
+    for i in range(1,17):
+      ith_jpeg_path = f'../temp/{file_name}_{i:02d}.jpg'
+      if os.path.exists(ith_jpeg_path):
+        os.remove(ith_jpeg_path)
+      ith_processed_jpeg_path = f'../temp/{file_name}_processed_{i:02d}.jpg'
+      if os.path.exists(ith_processed_jpeg_path):
+        os.remove(ith_processed_jpeg_path)
+    audio_path = f'../temp/{file_name}_audio.wav'
+    if os.path.exists(audio_path):
+      os.remove(audio_path)
 
 
 def main():
-  # update file paths for each batch
-  h5_path = '/mnt/c/cs228_data/processed_data_00.h5'
-  with h5py.File(h5_path, 'w') as f:
-    print('created h5 file!')
-  zip_file_path = '/mnt/c/Users/Emily/Downloads/dfdc_train_part_00.zip'
-  subfolder = 'dfdc_train_part_0'
-  # print(os.path.exists(zip_file_path))
-  # print(device)
+  create_new_h5 = sys.argv[1]
+  h5_name = sys.argv[2]
+  h5_path = f'/mnt/c/cs228_data/{h5_name}.h5'
+  if (create_new_h5 == '1'):
+    with h5py.File(h5_path, 'w') as f:
+      print(f'created new h5 file {h5_name}.h5!')
 
-  with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
-    zip_file_names = zip_ref.namelist()
+  # update chunk nums for each batch
+  chunks_to_process = [45,46,47,48,49]
+  for chunk in chunks_to_process:
+    zip_file_path = f'/mnt/c/Users/Emily/Downloads/dfdc_train_part_{chunk:02d}.zip'
+    subfolder = f'dfdc_train_part_{chunk}'
+    # print(os.path.exists(zip_file_path))
+    # print(device)
+    real_count = 0
+    fake_count = 0
 
-    label_sheet = [f for f in zip_file_names if f.endswith('.json')]
-    label_sheet = label_sheet[0]
-    with zip_ref.open(label_sheet) as f:
-      json_data = json.loads(f.read().decode('utf-8'))
-  
-    files_to_process = [f for f in zip_file_names if f.endswith('.mp4')]
+    with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+      zip_file_names = zip_ref.namelist()
+
+      label_sheet = [f for f in zip_file_names if f.endswith('.json')]
+      label_sheet = label_sheet[0]
+      with zip_ref.open(label_sheet) as f:
+        json_data = json.loads(f.read().decode('utf-8'))
     
-    # extract each video in zip and process
-    for file in files_to_process:
-      zip_ref.extract(file, path='../temp')
-      file_name_with_ext = os.path.basename(file)
-      file_name = file_name_with_ext.removesuffix('.mp4')
-      label_string = json_data[file_name_with_ext]['label']
-      if (label_string == 'FAKE'):
-        label = 1 
-      else:
-        label = 0
+      files_to_process = [f for f in zip_file_names if f.endswith('.mp4')]
+      
+      # extract each video in zip and process
+      for file in files_to_process:
+        zip_ref.extract(file, path='../temp')
+        file_name_with_ext = os.path.basename(file)
+        file_name = file_name_with_ext.removesuffix('.mp4')
+        label_string = json_data[file_name_with_ext]['label']
+        if (label_string == 'FAKE'):
+          label = 1 
+        else:
+          label = 0
+        processed = False
 
-      print(f'processing {label_string} ({label}) video {file_name}........')
-      processed = process_vid(file_name, subfolder)
-      if processed:
-        save_vid_to_h5(file_name, label, h5_path)
-        delete_preprocessed_files(file_name, subfolder)
-        print(f'{file_name} processed and saved!')
-      else: 
-        print(f'could not process {file_name}')
+        if ((label == 0 and real_count < 50) or (label == 1 and fake_count < 50)):
+          print(f'processing {label_string} ({label}) video {file_name}........')
+          processed = process_vid(file_name, subfolder)
+          if processed:
+            save_vid_to_h5(file_name, label, h5_path)
+            if (label == 0):
+              real_count += 1
+            else:
+              fake_count += 1
+            print(f'{file_name} processed and saved!')
+          else: 
+            print(f'could not process {file_name}')
+
+        delete_preprocessed_files(file_name, subfolder, processed)
+
+        if (real_count >= 50 and fake_count >= 50):
+          break
+
+    print(f'Finished processing chunk {chunk} with {real_count} real samples and {fake_count} fake samples!! ^-^\n')
 
 
 if __name__ == "__main__":
