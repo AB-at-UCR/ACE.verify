@@ -39,7 +39,7 @@ def numRealAndFake(dataset):
     print(f"Number of Real: {num_real}, Number of Fake: {num_fake}\n")
 
 
-h5_files = ['data/processed_data_00.h5']
+h5_files = ['data/train_data.h5']
 dataset = ACEDataset(h5_files)
 #numRealAndFake(dataset)
 test_visualization(dataset, 0)

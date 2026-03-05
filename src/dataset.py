@@ -3,6 +3,7 @@ import h5py
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import torchaudio.transforms as transforms
+import torch.nn.functional as F
 
 class ACEDataset(Dataset):
     def __init__(self, h5_paths, transform=None):
@@ -32,7 +33,10 @@ class ACEDataset(Dataset):
 
         if audio.ndim > 1:
             audio = audio.mean(dim=0)
+
         spec = self.spectogram_transform(audio)
         spec = spec.unsqueeze(0)
+        # This fixes the spec size differences, all the same now
+        spec = torch.nn.functional.interpolate(spec.unsqueeze(0), size=(224, 224), mode='bilinear', align_corners=False).squeeze(0)
 
         return video, spec, label

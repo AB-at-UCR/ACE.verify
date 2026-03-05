@@ -12,11 +12,21 @@ learning_rate = 0.0001
 epochs = 10
 
 # Prepare data
-train_data_raw = ['data/processed_data_00.h5']
-test_data_raw = ['data/processed_data_01.h5']
+train_data_raw = ['data/train_data.h5']
+test_data_raw = ['data/test_data.h5']
 
 train_dataset = ACEDataset(train_data_raw)
 test_dataset = ACEDataset(test_data_raw)
+# num_138 = 0
+# num_151 = 0
+# for i in range(len(train_dataset)):
+#     video, spec, label = train_dataset[i]
+#     print(f"{spec.shape}, label: {label}")
+#     if spec.shape[2] == 138:
+#         num_138 += 1
+#     else:
+#         num_151 += 1
+# print(f"num_138:{num_138}, num_151:{num_151}")
 
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
