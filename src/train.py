@@ -1,15 +1,20 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
+import numpy as np
+from sklearn.metrics import confusion_matrix, f1_score, classification_report
 from dataset import ACEDataset
 from model import ACEVerifyModel
 
 # Hyperparameters
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 batch_size = 8
+steps = 4
 learning_rate = 0.0001
 epochs = 10
+scalar = GradScaler('cuda')
 
 # Prepare data
 train_data_raw = ['data/train_data.h5']
@@ -34,12 +39,16 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num
 # Model
 model = ACEVerifyModel().to(device)
 criterion = nn.BCEWithLogitsLoss()
-optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=0.01)
+
+best_val_acc = 0.0
+model_save_path = "aceverify_best.pth"
 
 # Train loop
-print("Training Start!")
+print(f"Training Start! On {device}!")
 for epoch in range(epochs):
     model.train()
+    optimizer.zero_grad()
     total_loss = 0
     train_correct = 0
     train_total = 0
@@ -47,12 +56,17 @@ for epoch in range(epochs):
     for i, (videos, specs, labels) in enumerate(train_loader):
         videos, specs, labels = videos.to(device), specs.to(device), labels.to(device).float().unsqueeze(1)
 
-        outputs = model(videos, specs)
-        loss = criterion(outputs, labels)
+        with autocast('cuda'):
+            outputs = model(videos, specs)
+            loss = criterion(outputs, labels)
+            loss = loss / steps
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        scalar.scale(loss).backward()
+
+        if (i+1) % steps == 0:
+            scalar.step(optimizer)
+            scalar.update()
+            optimizer.zero_grad()
 
         predictions = (torch.sigmoid(outputs) > 0.5).float()
         train_correct += (predictions == labels).sum().item()
@@ -63,6 +77,15 @@ for epoch in range(epochs):
             current_accuracy = 100 * (train_correct / train_total)
             print(f"Epoch [{epoch+1}/{epochs}], Step [{i}], Loss: {loss.item():.4f}, Training Accuracy: {current_accuracy:.2f}%")
 
+            if current_accuracy > best_val_acc:
+                best_val_acc = current_accuracy
+                torch.save({
+                    'epoch': epoch + 1,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'val_acc': current_accuracy,
+                }, model_save_path)
+
     avg_train_loss = total_loss / len(train_loader)
     train_accuracy = 100 * (train_correct / train_total)
 
@@ -70,6 +93,8 @@ for epoch in range(epochs):
     model.eval()
     test_correct = 0
     test_total = 0
+    all_preds = []
+    all_labels = []
     with torch.no_grad():
         for videos, specs, labels in test_loader:
             videos, specs, labels = videos.to(device), specs.to(device), labels.to(device).float().unsqueeze(1)
@@ -77,6 +102,9 @@ for epoch in range(epochs):
             predictions = (torch.sigmoid(outputs) > 0.5).float()
             test_correct += (predictions == labels).sum().item()
             test_total += labels.size(0)
+            all_preds.extend(preds.cpu().numpy())
+            all_labelsl.extend(labels.cpu().numpy())
+
     test_accuracy = 100 * (test_correct / test_total)
 
     print(f"---Epoch {epoch+1} Summary---")
@@ -86,12 +114,6 @@ for epoch in range(epochs):
     print("------------------------------------------------")
 
 
+print("\nFinal Classification Report:")
+print(classification_report(all_labels, all_preds, target_names=['Real', 'Fake']))
 torch.save(model.state_dict(), "aceverify_final.pth")
-
-
-def predict_video(video_tensor, audio_tensor):
-    model.eval()
-    with torch.no_grad():
-        output = model(video_tensor.unsqueeze(0).to(device), audio_tensor.unsqueeze(0).to(device))
-        prob = torch.sigmoid(output).item()
-        return "Fake" if prob > 0.5 else "Real", prob
