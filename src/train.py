@@ -1,54 +1,58 @@
+import h5py
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.amp import GradScaler, autocast
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 import numpy as np
 from sklearn.metrics import confusion_matrix, f1_score, classification_report
 from dataset import ACEDataset
 from model import ACEVerifyModel
 
+torch.cuda.empty_cache()
+
+def load_data(path, n, training):
+    num_each = n // 2
+    all_labels = []
+    
+    with h5py.File(path, 'r') as f:
+        for key in f.keys():
+            all_labels.append(f[key].attrs['label'])
+
+    all_labels = np.array(all_labels)
+    real_indices = np.where(all_labels == 0)[0]
+    fake_indices = np.where(all_labels == 1)[0]
+
+    sel_real = np.random.choice(real_indices, min(len(real_indices), num_each), replace=False)
+    sel_fake = np.random.choice(fake_indices, min(len(fake_indices), num_each), replace=False)
+
+    sub_indices = np.concatenate([sel_real, sel_fake])
+    np.random.shuffle(sub_indices)
+    
+    dataset = ACEDataset(h5_path=path, indices=sub_indices, is_training=training)
+    return dataset
+
 # Hyperparameters
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-batch_size = 8
-steps = 4
+batch_size = 16
 learning_rate = 0.0001
 epochs = 10
-scalar = GradScaler('cuda')
 
-# Prepare data
-train_data_raw = ['data/train_data.h5']
-test_data_raw = ['data/test_data.h5']
 
-train_dataset = ACEDataset(train_data_raw)
-test_dataset = ACEDataset(test_data_raw)
-# num_138 = 0
-# num_151 = 0
-# for i in range(len(train_dataset)):
-#     video, spec, label = train_dataset[i]
-#     print(f"{spec.shape}, label: {label}")
-#     if spec.shape[2] == 138:
-#         num_138 += 1
-#     else:
-#         num_151 += 1
-# print(f"num_138:{num_138}, num_151:{num_151}")
+train_dataset = load_data('data/train_data.h5', 200, True)
+test_dataset = load_data('data/test_data.h5', 50, False)
 
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=False)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=False)
 
 # Model
 model = ACEVerifyModel().to(device)
 criterion = nn.BCEWithLogitsLoss()
-optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=0.01)
-
-best_val_acc = 0.0
-model_save_path = "aceverify_best.pth"
+optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=0.05)
 
 # Train loop
 print(f"Training Start! On {device}!")
 for epoch in range(epochs):
     model.train()
-    optimizer.zero_grad()
     total_loss = 0
     train_correct = 0
     train_total = 0
@@ -56,17 +60,12 @@ for epoch in range(epochs):
     for i, (videos, specs, labels) in enumerate(train_loader):
         videos, specs, labels = videos.to(device), specs.to(device), labels.to(device).float().unsqueeze(1)
 
-        with autocast('cuda'):
-            outputs = model(videos, specs)
-            loss = criterion(outputs, labels)
-            loss = loss / steps
+        outputs = model(videos, specs)
+        loss = criterion(outputs, labels)
 
-        scalar.scale(loss).backward()
-
-        if (i+1) % steps == 0:
-            scalar.step(optimizer)
-            scalar.update()
-            optimizer.zero_grad()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
         predictions = (torch.sigmoid(outputs) > 0.5).float()
         train_correct += (predictions == labels).sum().item()
@@ -76,15 +75,6 @@ for epoch in range(epochs):
         if i % 10 == 0:
             current_accuracy = 100 * (train_correct / train_total)
             print(f"Epoch [{epoch+1}/{epochs}], Step [{i}], Loss: {loss.item():.4f}, Training Accuracy: {current_accuracy:.2f}%")
-
-            if current_accuracy > best_val_acc:
-                best_val_acc = current_accuracy
-                torch.save({
-                    'epoch': epoch + 1,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'val_acc': current_accuracy,
-                }, model_save_path)
 
     avg_train_loss = total_loss / len(train_loader)
     train_accuracy = 100 * (train_correct / train_total)

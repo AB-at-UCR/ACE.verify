@@ -14,7 +14,7 @@ class ACEVerifyModel(nn.Module):
         self.audio_model = timm.create_model('resnet18', pretrained=True, in_chans=1, num_classes=0)
         self.audio_feature_dim = 512 
         
-        self.full_model = nn.Sequential(nn.Linear(1024, 256), nn.ReLU(), nn.Dropout(0.3), nn.Linear(256, num_classes))
+        self.full_model = nn.Sequential(nn.Linear(1024, 256), nn.ReLU(), nn.Dropout(0.5), nn.Linear(256, num_classes))
 
     def forward(self, video, audio):
         batch_size, C, T, H, W = video.shape
