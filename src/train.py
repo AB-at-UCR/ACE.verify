@@ -115,8 +115,8 @@ def main():
                 predictions = (torch.sigmoid(outputs) > 0.5).float()
                 test_correct += (predictions == labels).sum().item()
                 test_total += labels.size(0)
-                all_preds.extend(predictions.cpu().numpy())
-                all_labels.extend(labels.cpu().numpy())
+                all_preds.extend(predictions.view(-1).cpu().tolist())
+                all_labels.extend(labels.view(-1).cpu().tolist())
 
         test_accuracy = 100 * (test_correct / test_total)
 
