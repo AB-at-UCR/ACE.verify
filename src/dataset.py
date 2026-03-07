@@ -11,6 +11,7 @@ class ACEDataset(Dataset):
         self.h5_path = h5_path
         self.indices = indices
         self.file = None
+        self.keys = None
         self.is_training = is_training
         self.spectrogram_transform = transforms.MelSpectrogram(sample_rate=44000, n_mels=32, n_fft=400, hop_length=160)
 
@@ -20,9 +21,10 @@ class ACEDataset(Dataset):
     def __getitem__(self, idx):
         if self.file is None:
             self.file = h5py.File(self.h5_path, 'r')
+            self.keys = list(self.file.keys())
 
         real_idx = self.indices[idx]
-        key = list(self.file.keys())[real_idx]
+        key = self.keys[real_idx]
         group = self.file[key]
 
         full_video = group['video'][:]
