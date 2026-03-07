@@ -39,7 +39,15 @@ def numRealAndFake(dataset):
     print(f"Number of Real: {num_real}, Number of Fake: {num_fake}\n")
 
 
-h5_files = ['data/train_data.h5']
-dataset = ACEDataset(h5_files)
-#numRealAndFake(dataset)
-test_visualization(dataset, 0)
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Visualize ACE dataset samples")
+    parser.add_argument("--h5", nargs="+", default=["data/train_data.h5"],
+                        help="Path(s) to HDF5 data file(s)")
+    parser.add_argument("--index", type=int, default=0,
+                        help="Dataset index to visualize")
+    args = parser.parse_args()
+
+    dataset = ACEDataset(args.h5)
+    test_visualization(dataset, args.index)
