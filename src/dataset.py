@@ -9,11 +9,15 @@ import torch.nn.functional as F
 class ACEDataset(Dataset):
     def __init__(self, h5_path, indices=None, is_training=False):
         self.h5_path = h5_path
-        self.indices = indices
         self.file = None
         self.keys = None
         self.is_training = is_training
         self.spectrogram_transform = transforms.MelSpectrogram(sample_rate=44000, n_mels=32, n_fft=400, hop_length=160)
+        if indices is None:
+            with h5py.File(self.h5_path, 'r') as f:
+                self.indices = list(range(len(f.keys())))
+        else:
+            self.indices = indices
 
     def __len__(self):
         return len(self.indices)
