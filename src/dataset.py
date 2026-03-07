@@ -58,3 +58,12 @@ class ACEDataset(Dataset):
         label = torch.tensor(group.attrs['label'], dtype=torch.long)
 
         return video, spec, label
+
+    def close(self):
+        if self.file is not None:
+            self.file.close()
+            self.file = None
+
+    def __del__(self):
+        if hasattr(self, 'file'):
+            self.close()
