@@ -1,3 +1,4 @@
+import argparse
 import ffmpeg
 import subprocess
 from facenet_pytorch import MTCNN
@@ -86,14 +87,19 @@ def delete_preprocessed_files(file_name, subfolder):
 
 
 def main():
-  # update file paths for each batch
-  h5_path = '/mnt/c/cs228_data/processed_data_00.h5'
+  parser = argparse.ArgumentParser(description='Preprocess deepfake detection videos into HDF5 format.')
+  parser.add_argument('zip_file', help='Path to the zip file containing raw video data (e.g. dfdc_train_part_00.zip)')
+  parser.add_argument('subfolder', help='Subfolder name within the zip file to use as the temp extraction prefix (e.g. dfdc_train_part_0)')
+  parser.add_argument('--output', '-o', default='processed_data.h5',
+                      help='Path to the output HDF5 file (default: processed_data.h5)')
+  args = parser.parse_args()
+
+  zip_file_path = args.zip_file
+  subfolder = args.subfolder
+  h5_path = args.output
+
   with h5py.File(h5_path, 'w') as f:
     print('created h5 file!')
-  zip_file_path = '/mnt/c/Users/Emily/Downloads/dfdc_train_part_00.zip'
-  subfolder = 'dfdc_train_part_0'
-  # print(os.path.exists(zip_file_path))
-  # print(device)
 
   with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
     zip_file_names = zip_ref.namelist()
