@@ -5,15 +5,12 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
 import numpy as np
 from sklearn.metrics import confusion_matrix, f1_score, classification_report
-from dataset import ACEDataset
-from model import ACEVerifyModel
 
-torch.cuda.empty_cache()
 
 def load_data(path, n, training):
     num_each = n // 2
     all_labels = []
-    
+
     with h5py.File(path, 'r') as f:
         for key in f.keys():
             all_labels.append(f[key].attrs['label'])
@@ -27,31 +24,42 @@ def load_data(path, n, training):
 
     sub_indices = np.concatenate([sel_real, sel_fake])
     np.random.shuffle(sub_indices)
-    
+
     dataset = ACEDataset(h5_path=path, indices=sub_indices, is_training=training)
     return dataset
 
 # Hyperparameters
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-batch_size = 16
-learning_rate = 0.0001
+batch_size = 8
+learning_rate = 5e-5
 epochs = 10
 
-
-train_dataset = load_data('data/train_data.h5', 200, True)
-test_dataset = load_data('data/test_data.h5', 50, False)
-
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=False)
+test_dataset = load_data(test_path, 200, False)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=False)
 
 # Model
 model = ACEVerifyModel().to(device)
-criterion = nn.BCEWithLogitsLoss()
-optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=0.05)
+criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([2.0]).to(device))
+optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-4)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
+
+checkpoint_path = "aceverify_final.pth" 
+try:
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+        model.load_state_dict(checkpoint['model_state_dict'])
+        print(f"Resuming from dict checkpoint: {checkpoint_path}")
+    else:
+        model.load_state_dict(checkpoint)
+        print(f"Resuming from state_dict: {checkpoint_path}")
+except FileNotFoundError:
+    print("No checkpoint found. Starting from pretrained ViT weights.")
 
 # Train loop
 print(f"Training Start! On {device}!")
 for epoch in range(epochs):
+    train_dataset = load_data(train_path, 1000, True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=False)
     model.train()
     total_loss = 0
     train_correct = 0
@@ -61,7 +69,7 @@ for epoch in range(epochs):
         videos, specs, labels = videos.to(device), specs.to(device), labels.to(device).float().unsqueeze(1)
 
         outputs = model(videos, specs)
-        loss = criterion(outputs, labels)
+        loss = criterion(outputs, labels.float().view(-1, 1))
 
         optimizer.zero_grad()
         loss.backward()
@@ -78,6 +86,7 @@ for epoch in range(epochs):
 
     avg_train_loss = total_loss / len(train_loader)
     train_accuracy = 100 * (train_correct / train_total)
+    scheduler.step()
 
     # validation
     model.eval()
@@ -92,8 +101,8 @@ for epoch in range(epochs):
             predictions = (torch.sigmoid(outputs) > 0.5).float()
             test_correct += (predictions == labels).sum().item()
             test_total += labels.size(0)
-            all_preds.extend(preds.cpu().numpy())
-            all_labelsl.extend(labels.cpu().numpy())
+            all_preds.extend(predictions.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
 
     test_accuracy = 100 * (test_correct / test_total)
 

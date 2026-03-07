@@ -20,31 +20,41 @@ class ACEDataset(Dataset):
     def __getitem__(self, idx):
         if self.file is None:
             self.file = h5py.File(self.h5_path, 'r')
-            
+
         real_idx = self.indices[idx]
         key = list(self.file.keys())[real_idx]
         group = self.file[key]
 
-        video = torch.from_numpy(group['video'][:]).float().permute(3, 0, 1, 2) / 255.0
+        full_video = group['video'][:]
+        total_frames = full_video.shape[0]
+        num_output_frames = 16
+        stride = 2
+        indices = np.arange(0, num_output_frames * stride, stride)
+
+        if indices[-1] >= total_frames:
+            indices = np.linspace(0, total_frames - 1, num_output_frames).astype(int)
+
+        video = torch.from_numpy(full_video[indices]).float().permute(3, 0, 1, 2) / 255.0
 
         # Data augmentation
         aug = T.Compose([
             T.RandomHorizontalFlip(p=0.5),
             T.ColorJitter(brightness=0.2, contrast=0.2),
-            T.RandomErasing(p=0.1, scale=(0.02, 0.1))
+            T.RandomErasing(p=0.5, scale=(0.02, 0.1), ratio=(0.3, 3.3), value=0),
+            # T.RandomErasing(p=0.7, scale=(0.1, 0.3), ratio=(0.3, 3.3), value=0),
         ])
 
-        if self.is_training: 
+        if self.is_training:
             video = video.permute(1, 0, 2, 3)
-            video = aug(video) 
-            video = video.permute(1, 0, 2, 3) 
-        
+            video = aug(video)
+            video = video.permute(1, 0, 2, 3)
+
         audio = torch.from_numpy(group['audio'][:]).float()
         if audio.ndim > 1: audio = audio.mean(dim=0)
         spec = self.spectrogram_transform(audio).unsqueeze(0)
         # This fixes the spec size differences, all the same now
         spec = F.interpolate(spec.unsqueeze(0), size=(224, 224), mode='bilinear').squeeze(0)
-        
+
         label = torch.tensor(group.attrs['label'], dtype=torch.long)
-        
+
         return video, spec, label
