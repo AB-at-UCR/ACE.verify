@@ -1,3 +1,4 @@
+import argparse
 import ffmpeg
 import subprocess
 from facenet_pytorch import MTCNN
