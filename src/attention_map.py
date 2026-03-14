@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 from PIL import Image
-from dataset import ACEDataset
-from model import ACEVerifyModel
+from src.dataset import ACEDataset
+from src.model import ACEVerifyModel
 
 
 def load_data(path, n, training):
