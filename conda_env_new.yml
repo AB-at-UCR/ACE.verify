@@ -1,0 +1,32 @@
+name: aceverify
+channels:
+  - defaults
+  - pytorch
+  - nvidia
+dependencies:
+  - python=3.13
+  - pip
+  - ipykernel
+  - ipython
+  - jupyter_client
+  - matplotlib-inline
+  - pydantic
+  - requests
+  - tqdm
+  - pyyaml
+  - pip:
+      - torch
+      - torchvision
+      - torchaudio
+      - facenet-pytorch
+      - ffmpeg-python
+      - huggingface-hub
+      - matplotlib
+      - numpy
+      - scikit-learn
+      - scipy
+      - timm
+      - sqlalchemy
+      - dataset
+      - alembic
+      - pillow
