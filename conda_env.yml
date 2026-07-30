@@ -1,4 +1,4 @@
-name: base
+name: aceverify
 channels:
   - defaults
 dependencies:
@@ -14,4 +14,3 @@ dependencies:
   - menuinst
   - anaconda-anon-usage
   - anaconda-auth
-prefix: /home/cccla/miniconda3
