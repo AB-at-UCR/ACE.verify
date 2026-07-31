@@ -1,0 +1,365 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+    --cream:     #F5F0E8;
+    --cream-dark:#EDE8DC;
+    --ink:       #1A1A1A;
+    --ink-soft:  #4A4A4A;
+    --amber:     #F0A030;
+    --amber-dark:#D4891A;
+    --red:       #E84040;
+    --green:     #2ECC71;
+    --green-soft:#27AE60;
+    --yellow:    #F5C518;
+    --card-bg:   #EDE8DC;
+    --border:    #C8BFA8;
+    --mono:      'DM Mono', monospace;
+}
+
+html, body, [class*="css"] {
+    font-family: 'DM Sans', sans-serif;
+    background-color: var(--cream) !important;
+    color: var(--ink);
+}
+
+.stApp { background-color: var(--cream) !important; }
+
+#MainMenu, footer, header { visibility: hidden; }
+.block-container { padding: 0 2rem 2rem 2rem !important; max-width: 1200px; margin: auto; }
+
+/* ── Navbar ── */
+.navbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 0; border-bottom: 2px solid var(--ink);
+    margin-bottom: 2.5rem;
+}
+.navbar-brand {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700; font-size: 1.4rem; letter-spacing: -0.5px;
+    color: var(--ink);
+}
+.navbar-brand span { color: var(--amber); }
+.navbar-links { display: flex; gap: 1.5rem; align-items: center; }
+.nav-badge {
+    background: var(--red); color: white; font-size: 0.6rem;
+    padding: 2px 6px; border-radius: 3px; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase;
+}
+.nav-link {
+    font-family: var(--mono); font-size: 0.85rem;
+    color: var(--ink-soft); text-decoration: none;
+}
+
+/* ── Hero ── */
+.hero { text-align: center; padding: 0rem 0 2.5rem; position: relative; margin-top: -2.5rem }
+.sparkle { display: inline-block; font-size: 2rem; padding-left: 8rem; }
+.hero h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.8rem, 6vw, 4.5rem);
+    font-weight: 400; line-height: 1.1;
+    margin: 0.5rem 0; letter-spacing: -1px;
+    color: var(--ink);
+}
+.hero h1 em { font-style: italic; color: var(--amber-dark); }
+.hero-sub {
+    font-size: 1.05rem; color: var(--ink-soft);
+    max-width: 1040px; margin: 0.75rem auto 0;
+    line-height: 1.6;
+}
+
+/* ── Upload Card ── */
+div[data-testid="stVerticalBlock"]:has(> div > div > div > div > .upload-card-anchor) {
+    background-color: var(--card-bg) !important;
+    border: 2px solid var(--border) !important;
+    border-radius: 16px !important;
+    padding: 2rem !important;
+    margin: 2rem auto !important;
+    max-width: 900px !important;
+    box-shadow: 5px 5px 0px var(--ink) !important;
+}
+
+div[data-testid="stVerticalBlock"]:has(> div > div > div > div > .upload-card-anchor) > div {
+    margin-bottom: -1rem !important;
+}
+
+div[data-testid="stVerticalBlock"]:has(> div > div > div > div > .upload-card-anchor) [data-testid="stFileUploader"] {
+    background-color: var(--ink) !important;
+    border: 1px dashed var(--border) !important;
+    color: var(--amber-dark) !important;
+}
+
+.upload-card-anchor { display: none; height: 0; }
+
+/* ── Section Labels ── */
+.section-label {
+    font-family: var(--mono); font-size: 0.72rem;
+    text-transform: uppercase; letter-spacing: 2px;
+    color: var(--ink-soft); margin: 1rem 0 0.5rem 0;
+}
+
+/* ── Verdict Banner ── */
+.verdict-fake {
+    background: var(--red); color: white;
+    border-radius: 10px; padding: 1.25rem 1.75rem;
+    display: flex; align-items: center; gap: 1rem;
+    border: 2px solid var(--ink);
+    box-shadow: 4px 4px 0px var(--ink);
+}
+.verdict-real {
+    background: var(--green); color: white;
+    border-radius: 10px; padding: 1.25rem 1.75rem;
+    display: flex; align-items: center; gap: 1rem;
+    border: 2px solid var(--ink);
+    box-shadow: 4px 4px 0px var(--ink);
+}
+.verdict-uncertain {
+    background: var(--yellow); color: var(--ink);
+    border-radius: 10px; padding: 1.25rem 1.75rem;
+    display: flex; align-items: center; gap: 1rem;
+    border: 2px solid var(--ink);
+    box-shadow: 4px 4px 0px var(--ink);
+}
+.verdict-stamp {
+    font-family: 'Instrument Serif', serif;
+    font-size: 2rem; font-weight: 400;
+}
+.verdict-detail { font-size: 0.9rem; opacity: 0.9; margin-top: 2px; }
+
+/* ── 2x2 EQUAL GRID CARD SYSTEM ── */
+/* 1. The row: stretch all columns to the same height */
+div[data-testid="stHorizontalBlock"] {
+    align-items: stretch !important;
+    /* gap: 0 !important; */
+}
+
+/* Each column wrapper inside a horizontal block should be full height */
+div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;        /* prevent flex blowout */
+    flex: 1 1 0% !important;        /* equal width, overrides any ratio */
+    max-width: 50% !important;      /* hard cap at exactly half */
+}
+
+/* The inner vertical block inside each column should grow */
+div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"] {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    color: var(--ink) !important;
+}
+            
+/* 4. The stVerticalBlock's direct child (element wrapper): fill remaining space */
+div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"] > div {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+}
+
+/* Target Analysis Card containers — force full height */
+.analysis-card-anchor { display: none !important; height: 0 !important; }
+
+div[data-testid="stVerticalBlock"]:has(> div > div > div > div > .analysis-card-anchor) {
+    background: var(--card-bg) !important;
+    border: 2px solid var(--border) !important;
+    border-radius: 12px !important;
+    padding: 1.25rem !important;
+    /* flex: 1 !important; */
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    box-shadow: 3px 3px 0px var(--ink) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-sizing: border-box !important;
+}
+            
+/* Allow inner content to scroll vertically if it overflows instead of expanding */
+div[data-testid="stVerticalBlock"]:has(> div > div > div > div > .analysis-card-anchor) > div {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: visible !important;
+    overflow-x: visible !important;
+}
+
+/* Images inside analysis cards: never overflow their card */
+div[data-testid="stVerticalBlock"]:has(> div > div > div > div > .analysis-card-anchor) img {
+    max-width: 100% !important;
+    height: auto !important;
+    object-fit: contain !important;
+}
+
+/* Headings inside analysis cards */
+div[data-testid="stVerticalBlock"]:has(> div > div > div > div > .analysis-card-anchor) h4 {
+    font-family: var(--mono); font-size: 0.75rem;
+    text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--ink-soft); margin: 0 0 0.75rem;
+    flex-shrink: 0 !important;
+}
+
+/* ── Confidence Gauge ── */
+.gauge-container { text-align: center; padding: 0.5rem 0; }
+.gauge-value {
+    font-family: 'Instrument Serif', serif;
+    font-size: 3.5rem; line-height: 1;
+    color: var(--red);
+}
+.gauge-label { font-size: 0.85rem; color: var(--ink-soft); margin-top: 4px; }
+.gauge-bar-bg {
+    background: #D0C8B8; border-radius: 999px;
+    height: 10px; margin: 0.75rem 0; overflow: hidden;
+    border: 1px solid var(--border);
+}
+.gauge-bar-fill {
+    height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, #F5C518, #F0A030, #E84040);
+    transition: width 1s ease;
+}
+
+/* ── Evidence Chips ── */
+.chip-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.chip {
+    font-family: var(--mono); font-size: 0.72rem;
+    padding: 4px 10px; border-radius: 6px;
+    border: 1.5px solid; font-weight: 500;
+}
+.chip-red   { background: #FFE8E8; border-color: var(--red);   color: var(--red); }
+.chip-amber { background: #FFF3DC; border-color: var(--amber); color: var(--amber-dark); }
+.chip-green { background: #E6F9F0; border-color: var(--green-soft); color: var(--green-soft); }
+
+/* ── Timeline ── */
+.timeline-wrap {
+    background: var(--card-bg); border: 2px solid var(--border);
+    border-radius: 12px; padding: 1.25rem;
+    box-shadow: 3px 3px 0px var(--ink);
+}
+.timeline-wrap h4 {
+    font-family: var(--mono); font-size: 0.75rem;
+    text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--ink-soft); margin: 0 0 1rem;
+}
+.timeline-bar-container {
+    display: flex; gap: 2px; align-items: flex-end;
+    height: 60px; border-bottom: 2px solid var(--border);
+    padding-bottom: 4px;
+}
+.timeline-segment {
+    flex: 1; border-radius: 3px 3px 0 0;
+    min-width: 4px; cursor: pointer;
+    transition: opacity 0.2s;
+}
+.timeline-ticks {
+    display: flex; justify-content: space-between;
+    font-family: var(--mono); font-size: 0.65rem;
+    color: var(--ink-soft); margin-top: 4px;
+}
+.timeline-legend {
+    display: flex; gap: 1.5rem; margin-top: 0.75rem;
+    font-size: 0.78rem; color: var(--ink-soft);
+}
+.legend-dot {
+    width: 10px; height: 10px; border-radius: 2px;
+    display: inline-block; margin-right: 4px; vertical-align: middle;
+}
+
+/* ── Metadata Table ── */
+.meta-table { width: 100%; border-collapse: collapse; }
+.meta-table tr { border-bottom: 1px solid var(--border); }
+.meta-table tr:last-child { border-bottom: none; }
+.meta-table td { padding: 0.45rem 0; font-size: 0.83rem; }
+.meta-table td:first-child {
+    font-family: var(--mono); font-size: 0.72rem;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--ink-soft); width: 45%;
+}
+
+/* ── Frame Inspector ── */
+.frame-inspector {
+    background: #1A1A1A; border-radius: 10px;
+    padding: 1rem; text-align: center;
+    border: 2px solid var(--ink);
+    color: var(--ink) !important;
+}
+.frame-score {
+    font-family: var(--mono); font-size: 0.8rem;
+    color: #aaa; margin-top: 0.5rem;
+}
+
+/* ── Buttons ── */
+.stButton > button {
+    background: var(--amber) !important;
+    color: var(--ink) !important;
+    border: 2px solid var(--ink) !important;
+    border-radius: 8px !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    padding: 0.6rem 2rem !important;
+    box-shadow: 3px 3px 0px var(--ink) !important;
+    transition: all 0.15s ease !important;
+    margin: 0rem 0rem 0.75rem 0 !important;
+}
+.stButton > button:hover {
+    transform: translate(-2px, -2px) !important;
+    box-shadow: 5px 5px 0px var(--ink) !important;
+    background: var(--amber-dark) !important;
+}
+.stButton > button:active {
+    transform: translate(1px, 1px) !important;
+    box-shadow: 2px 2px 0px var(--ink) !important;
+}
+
+.stSlider { padding: 0 !important; color: var(--ink) !important; }
+
+[data-testid="stFileUploader"] {
+    border: 2px dashed var(--border) !important;
+    border-radius: 10px !important;
+    background: rgba(255,255,255,0.4) !important;
+}
+
+/* ── Example pills ── */
+.example-pill {
+    display: inline-block;
+    position: relative;
+    top: -20px;
+    color: var(--ink) !important;
+    background: white; border: 1.5px solid var(--border);
+    border-radius: 8px; padding: 5px 14px;
+    font-size: 0.83rem; cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    box-shadow: 2px 2px 0 var(--ink);
+    margin: 0 0 0.5rem 0;
+}
+.example-pill:hover { background: var(--amber); border-color: var(--ink); }
+
+/* Style streamlit buttons to look like example pills */
+div.stButton > button[kind="secondary"] {
+    background-color: #f0f2f6; /* Adjust to match your theme */
+    border-radius: 20px;
+    border: 1px solid #ddd;
+    font-size: 0.8rem;
+    padding: 2px 10px;
+    transition: all 0.3s;
+}
+
+div.stButton > button[kind="secondary"]:hover {
+    border-color: #ff4b4b;
+    color: #ff4b4b;
+}
+/* ---------------------------------------------------- */
+
+/* ── Divider ── */
+.fancy-divider {
+    border: none; border-top: 2px solid var(--border);
+    margin: 2rem 0;
+}
+
+/* ── Footer ── */
+.footer {
+    text-align: center; padding: 2rem 0 1rem;
+    font-family: var(--mono); font-size: 0.75rem;
+    color: var(--ink-soft); border-top: 2px solid var(--border);
+    margin-top: 3rem;
+}
