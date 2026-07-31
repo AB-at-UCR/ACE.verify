@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: aceverify-train
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: aceverify
+          image: your-registry/aceverify:latest
+          resources:
+            requests:
+              cpu: "4"
+              memory: "16Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+              nvidia.com/gpu: "1"
+          command: ["python", "-u", "aceverify/train.py", "--train_path", "/workspace/data/train.h5", "--test_path", "/workspace/data/test.h5", "--checkpoint-path", "/workspace/results/aceverify_final.pth"]
+          volumeMounts:
+            - mountPath: /workspace
+              name: workspace
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: aceverify-pvc
+      nodeSelector:
+        nvidia.com/gpu.product: "NVIDIA-RTX-A6000"
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+  backoffLimit: 2
