@@ -1,6 +1,6 @@
 """Standalone evaluation script that can run inside a pod.
 
-Usage: python -m ops.evaluate --h5 /workspace/data/test.h5 --checkpoint /workspace/results/aceverify_final.pth
+Usage: python -m evaluation.evaluate --h5 /workspace/data/test.h5 --checkpoint /workspace/results/aceverify_final.pth
 """
 import argparse
 import logging

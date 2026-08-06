@@ -10,8 +10,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from sklearn.metrics import classification_report, accuracy_score
 from transformers import TimesformerForVideoClassification, AutoImageProcessor
-from src.dataset import ACEDataset
-from src.model import ACEVerifyModel
+from aceverify.dataset import ACEDataset
+from aceverify.model import ACEVerifyModel
 
 def load_data(path, n, training):
     num_each = n // 2

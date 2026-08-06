@@ -17,7 +17,7 @@ RUN apt-get update \
 
 COPY aceverify/pyproject.toml ./pyproject.toml
 COPY aceverify ./aceverify
-COPY ops ./ops
+COPY evaluation ./evaluation
 COPY frontend ./frontend
 COPY models ./models
 COPY utilities ./utilities

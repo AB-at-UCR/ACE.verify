@@ -11,8 +11,8 @@ import streamlit as st
 import gdown
 import cv2
 import matplotlib.pyplot as plt
-from src.model import ACEVerifyModel
-from src.dataset import ACEDataset
+from aceverify.model import ACEVerifyModel
+from aceverify.dataset import ACEDataset
 from src.attention_map import predict_video, attention_map
 
 def process_vid(file_name, folder_path):

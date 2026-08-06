@@ -25,10 +25,10 @@ dependencies = [
 [project.scripts]
 aceverify-train = "aceverify.train:main"
 aceverify-preprocess = "aceverify.preprocess:main"
-aceverify-evaluate = "ops.evaluate:main"
+aceverify-evaluate = "evaluation.evaluate:main"
 
 [tool.setuptools]
-packages = ["aceverify", "ops"]
+packages = ["aceverify", "evaluation"]
 
 [tool.setuptools.package-dir]
 aceverify = "."
