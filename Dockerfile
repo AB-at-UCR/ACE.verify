@@ -28,7 +28,7 @@ COPY media ./media
 COPY README.md ./README.md
 COPY README_NRP.md ./README_NRP.md
 
-# Install Python dependencies
+# Install Python dependencies with matching PyTorch ecosystem versions
 RUN pip install --upgrade pip \
     && pip install \
         numpy \
@@ -45,6 +45,8 @@ RUN pip install --upgrade pip \
         sqlalchemy \
         dataset \
         alembic \
+        torchaudio==2.5.1 \
+        torchvision==0.20.1 \
     && pip install -e . --no-deps
 
 EXPOSE 8501
