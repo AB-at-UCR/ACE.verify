@@ -30,3 +30,6 @@ dependencies:
       - dataset
       - alembic
       - pillow
+      - opencv-python-headless
+      - streamlit
+      - h5py

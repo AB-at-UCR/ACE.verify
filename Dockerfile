@@ -8,11 +8,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /workspace
 
+# Install system dependencies (including OpenCV dependencies libgl1 and libglib2.0-0)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ffmpeg \
         git \
         build-essential \
+        libgl1 \
+        libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY aceverify/pyproject.toml ./pyproject.toml
@@ -25,9 +28,23 @@ COPY media ./media
 COPY README.md ./README.md
 COPY README_NRP.md ./README_NRP.md
 
+# Install Python dependencies
 RUN pip install --upgrade pip \
-    && pip install numpy h5py timm scikit-learn matplotlib ffmpeg-python facenet-pytorch Pillow scipy streamlit \
-    && pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124 \
+    && pip install \
+        numpy \
+        h5py \
+        timm \
+        scikit-learn \
+        matplotlib \
+        ffmpeg-python \
+        facenet-pytorch \
+        Pillow \
+        scipy \
+        streamlit \
+        opencv-python-headless \
+        sqlalchemy \
+        dataset \
+        alembic \
     && pip install -e . --no-deps
 
 EXPOSE 8501

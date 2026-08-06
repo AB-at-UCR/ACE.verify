@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import torch
-from dataset import *
+from .dataset import *
 
 def test_visualization(dataset, index=0):
     print(f"Full Dataset: Length: {len(dataset)}")
