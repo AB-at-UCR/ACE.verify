@@ -1,0 +1,4 @@
+[server]
+# Serve files in frontend/static/ at <app-url>/app/static/ — used by the
+# upload-card media preview to stream example clips without inlining them.
+enableStaticServing = true

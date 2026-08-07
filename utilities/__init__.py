@@ -2,6 +2,7 @@ from .gradcam import generate_gradcam, region_scores_from_heatmap, evidence_from
 from .timeline import generate_timeline, render_timeline_html
 from .model import load_model, get_fake_prob
 from .preprocess import FaceProcessor
+from .media_preview import render_media_preview
 
 __all__ = [
     'generate_gradcam',
@@ -12,4 +13,5 @@ __all__ = [
     'FaceProcessor',
     'region_scores_from_heatmap',
     'evidence_from_regions',
+    'render_media_preview',
 ]

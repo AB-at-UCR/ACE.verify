@@ -18,6 +18,7 @@ RUN apt-get update \
         libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
+COPY .streamlit ./.streamlit
 COPY aceverify/pyproject.toml ./pyproject.toml
 COPY aceverify ./aceverify
 COPY evaluation ./evaluation

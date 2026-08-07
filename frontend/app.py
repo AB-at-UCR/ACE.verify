@@ -33,6 +33,8 @@ if "file_ext" not in st.session_state:
     st.session_state.example_file = None
     st.session_state.active_file_path = None
     st.session_state.active_file_name = None
+    st.session_state.upload_sig = None       # (name, size) of the current upload
+    st.session_state.upload_tmp_path = None  # temp file backing the current upload
 
 # ─── Custom CSS ──────────────────────────────────────────────────────────────
 with open(Path(root_dir, "frontend", "app.css"), "r") as f:
@@ -56,6 +58,16 @@ def generate_timeline(duration_in_sec=30, n_segs=60):
 
 def render_timeline_html(scores, duration_in_sec):
     return utilities.render_timeline_html(scores, duration_in_sec)
+
+def cleanup_upload_temp():
+    """Remove the temp file backing a previous upload so replaced/removed files don't pile up."""
+    path = st.session_state.get("upload_tmp_path")
+    if path and os.path.exists(path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    st.session_state.upload_tmp_path = None
 
 github_logo = "https://cdn-icons-png.flaticon.com/512/25/25231.png"
 repo_url = "https://github.com/AB-at-UCR/ACE.verify"
@@ -144,11 +156,17 @@ with st.container():
         if uploaded_file:
             # If user uploads something, clear any selected example
             st.session_state.example_file = None
-            st.session_state.file_ext = os.path.splitext(uploaded_file.name)[1].lower()
-            with tempfile.NamedTemporaryFile(delete=False, suffix=st.session_state.file_ext) as tfile: 
-                tfile.write(uploaded_file.read())
-                st.session_state.active_file_path = tfile.name
-                st.session_state.active_file_name = uploaded_file.name
+            upload_sig = (uploaded_file.name, uploaded_file.size)
+            # Only write a new temp file when the upload actually changed
+            if st.session_state.get("upload_sig") != upload_sig or not st.session_state.active_file_path:
+                cleanup_upload_temp()
+                st.session_state.file_ext = os.path.splitext(uploaded_file.name)[1].lower()
+                with tempfile.NamedTemporaryFile(delete=False, suffix=st.session_state.file_ext) as tfile:
+                    tfile.write(uploaded_file.read())
+                    st.session_state.active_file_path = tfile.name
+                    st.session_state.active_file_name = uploaded_file.name
+                st.session_state.upload_tmp_path = st.session_state.active_file_path
+                st.session_state.upload_sig = upload_sig
         elif st.session_state.example_file:
             # Use the stored example
             st.session_state.active_file_path = st.session_state.example_file["path"]
@@ -165,6 +183,23 @@ with st.container():
                 st.session_state.active_file_path = None
                 st.session_state.active_file_name = None
                 st.rerun()
+        elif st.session_state.get("upload_sig"):
+            # Upload was removed via the uploader's ✕ — clear the stale file state
+            cleanup_upload_temp()
+            st.session_state.upload_sig = None
+            st.session_state.file_ext = None
+            st.session_state.active_file_path = None
+            st.session_state.active_file_name = None
+
+    # ─── Media Preview ────────────────────────────────────────────────────────
+    st.markdown('<div class="section-label">Media preview</div>', unsafe_allow_html=True)
+    utilities.render_media_preview(
+        file_path=st.session_state.active_file_path,
+        file_name=st.session_state.active_file_name,
+        file_ext=st.session_state.file_ext,
+        is_example=st.session_state.example_file is not None,
+        root_dir=root_dir,
+    )
 
 # ─── Trigger analysis and store in session state ──────────────────────────────
 if analyze_clicked and not st.session_state.analyzed:
