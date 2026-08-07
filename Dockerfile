@@ -8,7 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /workspace
 
-# Install system dependencies (including OpenCV dependencies libgl1 and libglib2.0-0)
+# Install system dependencies (including OpenCV & Mediapipe dependencies libgl1 and libglib2.0-0)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ffmpeg \
@@ -42,6 +42,7 @@ RUN pip install --upgrade pip \
         scipy \
         streamlit \
         opencv-python-headless \
+        mediapipe \
         sqlalchemy \
         dataset \
         alembic \

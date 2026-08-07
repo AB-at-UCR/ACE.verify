@@ -31,5 +31,6 @@ dependencies:
       - alembic
       - pillow
       - opencv-python-headless
+      - mediapipe
       - streamlit
       - h5py
