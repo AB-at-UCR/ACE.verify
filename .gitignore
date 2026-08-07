@@ -8,3 +8,5 @@ __pycache__
 *.csv
 *.sif
 *.log
+frontend/static/uploads/*
+!frontend/static/uploads/.gitkeep

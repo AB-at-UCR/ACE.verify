@@ -25,7 +25,6 @@ COPY evaluation ./evaluation
 COPY frontend ./frontend
 COPY models ./models
 COPY utilities ./utilities
-COPY media ./media
 COPY README.md ./README.md
 COPY README_NRP.md ./README_NRP.md
 
@@ -53,4 +52,4 @@ RUN pip install --upgrade pip \
 
 EXPOSE 8501
 
-CMD ["streamlit", "run", "frontend/app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+CMD ["streamlit", "run", "frontend/app.py", "--server.address=0.0.0.0", "--server.port=8501", "--server.enableStaticServing=true"]

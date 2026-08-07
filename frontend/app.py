@@ -2,7 +2,6 @@ import os
 import sys
 import torch
 import pathlib
-import tempfile
 
 current_file_path = pathlib.Path(__file__).resolve()
 root_dir = str(current_file_path.parent.parent)
@@ -14,6 +13,9 @@ import utilities
 import numpy as np
 import streamlit as st
 from pathlib import Path
+
+# Ensure /app/static/*.mp4 is served with video/* MIME (Streamlit ≤1.50 defaults to text/plain).
+utilities.ensure_static_video_mime()
 
 # ─── Page Config ────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -33,8 +35,9 @@ if "file_ext" not in st.session_state:
     st.session_state.example_file = None
     st.session_state.active_file_path = None
     st.session_state.active_file_name = None
-    st.session_state.upload_sig = None       # (name, size) of the current upload
-    st.session_state.upload_tmp_path = None  # temp file backing the current upload
+    st.session_state.active_static_url = None  # app/static/... URL for preview
+    st.session_state.upload_sig = None          # (name, size) of the current upload
+    st.session_state.upload_disk_path = None    # path under frontend/static/uploads/
 
 # ─── Custom CSS ──────────────────────────────────────────────────────────────
 with open(Path(root_dir, "frontend", "app.css"), "r") as f:
@@ -59,15 +62,23 @@ def generate_timeline(duration_in_sec=30, n_segs=60):
 def render_timeline_html(scores, duration_in_sec):
     return utilities.render_timeline_html(scores, duration_in_sec)
 
-def cleanup_upload_temp():
-    """Remove the temp file backing a previous upload so replaced/removed files don't pile up."""
-    path = st.session_state.get("upload_tmp_path")
-    if path and os.path.exists(path):
-        try:
-            os.remove(path)
-        except OSError:
-            pass
-    st.session_state.upload_tmp_path = None
+def cleanup_upload_disk():
+    """Remove a previously saved user upload from frontend/static/uploads/."""
+    utilities.remove_upload_file(st.session_state.get("upload_disk_path"), root_dir)
+    st.session_state.upload_disk_path = None
+    st.session_state.active_static_url = None
+
+def clear_media_selection():
+    """Reset all media-selection session state (upload or example)."""
+    cleanup_upload_disk()
+    st.session_state.results = {}
+    st.session_state.file_ext = None
+    st.session_state.analyzed = False
+    st.session_state.example_file = None
+    st.session_state.active_file_path = None
+    st.session_state.active_file_name = None
+    st.session_state.upload_sig = None
+    st.session_state.active_static_url = None
 
 github_logo = "https://cdn-icons-png.flaticon.com/512/25/25231.png"
 repo_url = "https://github.com/AB-at-UCR/ACE.verify"
@@ -146,10 +157,14 @@ with st.container():
                     st.toast("Please remove the uploaded file first.", icon="⚠️")
                 else:
                     # Store the selection in session state so it survives the rerun
+                    cleanup_upload_disk()
+                    preset_path = os.path.join(root_dir, "frontend", "static", filename)
                     st.session_state.example_file = {
-                        "path": os.path.join(root_dir, "media", filename),
-                        "name": filename
+                        "path": preset_path,
+                        "name": filename,
+                        "static_url": f"app/static/{filename}",
                     }
+                    st.session_state.upload_sig = None
                     st.rerun() # Force rerun to update the UI immediately
 
         # ─── File Normalization ──────────────────────────────────────────────────────
@@ -157,39 +172,47 @@ with st.container():
             # If user uploads something, clear any selected example
             st.session_state.example_file = None
             upload_sig = (uploaded_file.name, uploaded_file.size)
-            # Only write a new temp file when the upload actually changed
+            # Only write a new static file when the upload actually changed
             if st.session_state.get("upload_sig") != upload_sig or not st.session_state.active_file_path:
-                cleanup_upload_temp()
-                st.session_state.file_ext = os.path.splitext(uploaded_file.name)[1].lower()
-                with tempfile.NamedTemporaryFile(delete=False, suffix=st.session_state.file_ext) as tfile:
-                    tfile.write(uploaded_file.read())
-                    st.session_state.active_file_path = tfile.name
-                    st.session_state.active_file_name = uploaded_file.name
-                st.session_state.upload_tmp_path = st.session_state.active_file_path
-                st.session_state.upload_sig = upload_sig
+                cleanup_upload_disk()
+                try:
+                    path, display_name, static_url = utilities.save_upload_bytes(
+                        uploaded_file.getvalue(),
+                        uploaded_file.name,
+                        root_dir,
+                    )
+                except ValueError as exc:
+                    st.toast(f"Upload rejected: {exc}", icon="⚠️")
+                    st.session_state.upload_sig = None
+                    st.session_state.active_file_path = None
+                    st.session_state.active_file_name = None
+                    st.session_state.active_static_url = None
+                    st.session_state.file_ext = None
+                else:
+                    st.session_state.file_ext = os.path.splitext(display_name)[1].lower()
+                    st.session_state.active_file_path = path
+                    st.session_state.active_file_name = display_name
+                    st.session_state.active_static_url = static_url
+                    st.session_state.upload_disk_path = path
+                    st.session_state.upload_sig = upload_sig
         elif st.session_state.example_file:
-            # Use the stored example
+            # Use the stored example (already under frontend/static/)
             st.session_state.active_file_path = st.session_state.example_file["path"]
             st.session_state.active_file_name = st.session_state.example_file["name"]
+            st.session_state.active_static_url = st.session_state.example_file.get(
+                "static_url",
+                utilities.static_url_for(st.session_state.active_file_path, root_dir),
+            )
             st.session_state.file_ext = os.path.splitext(st.session_state.active_file_name)[1].lower()
             
             # UI Indicator that an example is loaded (Since we can't hack the uploader)
             st.toast(f"📁 **Example Loaded:** {st.session_state.active_file_name}")
             if st.button("Reset Selection"):
-                st.session_state.results = {}
-                st.session_state.file_ext = None
-                st.session_state.analyzed = False
-                st.session_state.example_file = None
-                st.session_state.active_file_path = None
-                st.session_state.active_file_name = None
+                clear_media_selection()
                 st.rerun()
         elif st.session_state.get("upload_sig"):
             # Upload was removed via the uploader's ✕ — clear the stale file state
-            cleanup_upload_temp()
-            st.session_state.upload_sig = None
-            st.session_state.file_ext = None
-            st.session_state.active_file_path = None
-            st.session_state.active_file_name = None
+            clear_media_selection()
 
     # ─── Media Preview ────────────────────────────────────────────────────────
     st.markdown('<div class="section-label">Media preview</div>', unsafe_allow_html=True)
@@ -199,6 +222,7 @@ with st.container():
         file_ext=st.session_state.file_ext,
         is_example=st.session_state.example_file is not None,
         root_dir=root_dir,
+        static_url=st.session_state.get("active_static_url"),
     )
 
 # ─── Trigger analysis and store in session state ──────────────────────────────
@@ -477,12 +501,7 @@ if st.session_state.analyzed and st.session_state.results:
         st.button("🔗 Share Analysis Link", width='stretch', key="btn_share")
     with act4:
         if st.button("🗑 Clear & Reset", width='stretch', key="btn_reset"):
-            st.session_state.results = {}
-            st.session_state.file_ext = None
-            st.session_state.analyzed = False
-            st.session_state.example_file = None
-            st.session_state.active_file_path = None
-            st.session_state.active_file_name = None
+            clear_media_selection()
             st.rerun()
 
 else:

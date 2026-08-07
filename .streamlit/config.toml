@@ -1,4 +1,4 @@
 [server]
-# Serve files in frontend/static/ at <app-url>/app/static/ — used by the
-# upload-card media preview to stream example clips without inlining them.
+# Serve files in frontend/static/ (presets + uploads/) at <app-url>/app/static/...
+# Used by the upload-card media preview for low-latency same-origin playback.
 enableStaticServing = true

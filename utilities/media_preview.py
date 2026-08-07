@@ -1,12 +1,11 @@
 """Compact media preview rendered inside the upload card.
 
-The preview is a small custom HTML component (iframe). Local/uploaded files are
-shipped to the browser as base64 and turned into a blob URL via
-``URL.createObjectURL``; the blob is released with ``URL.revokeObjectURL`` when
-the component is torn down (i.e. when the file is removed or replaced).
-Example clips are served through Streamlit's static file route when static
-serving is enabled, falling back to the blob path otherwise.
+Preset and user-uploaded files under ``frontend/static/`` are streamed via
+Streamlit's static route (``app/static/...``). A base64 → blob fallback remains
+only for paths that cannot be addressed as static assets.
 """
+
+from __future__ import annotations
 
 import os
 import html
@@ -15,6 +14,8 @@ import base64
 from pathlib import Path
 
 import streamlit as st
+
+from .static_media import static_serving_enabled, static_url_for
 
 VIDEO_MIME = {".mp4": "video/mp4", ".mov": "video/quicktime", ".avi": "video/x-msvideo"}
 IMAGE_MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
@@ -107,7 +108,7 @@ window.addEventListener("pagehide", revokeObjectUrl);
 window.addEventListener("beforeunload", revokeObjectUrl);
 
 if (SRC_URL) {
-    // Static URL (example media served by Streamlit's static file route).
+    // Static asset served by Streamlit at app/static/...
     media.src = new URL(SRC_URL, window.parent.location.href).href;
 } else if (B64) {
     var bin = atob(B64);
@@ -154,17 +155,15 @@ def _encode_file(path, mtime, size):
         return base64.b64encode(f.read()).decode("ascii")
 
 
-def _example_static_url(root_dir, file_name):
-    """Return a static URL for an example clip, or None if unavailable."""
-    try:
-        from streamlit import config as st_config
-        if not st_config.get_option("server.enableStaticServing"):
-            return None
-    except Exception:
+def _resolve_static_url(file_path, static_url, root_dir):
+    """Prefer Streamlit's static route when serving is enabled; else force blob fallback."""
+    if not static_serving_enabled():
         return None
-    if file_name and Path(root_dir, "frontend", "static", file_name).is_file():
-        return f"app/static/{file_name}"
-    return None
+    if static_url:
+        return static_url
+    if not file_path:
+        return None
+    return static_url_for(file_path, root_dir)
 
 
 def _wrap(body, script=""):
@@ -172,7 +171,7 @@ def _wrap(body, script=""):
     return f"<!DOCTYPE html><html><head><style>{_CSS}</style></head><body>{body}{script_tag}</body></html>"
 
 
-def render_media_preview(file_path, file_name, file_ext, is_example, root_dir):
+def render_media_preview(file_path, file_name, file_ext, is_example, root_dir, static_url=None):
     # Fallback state: nothing selected yet
     if not file_path or not os.path.exists(file_path):
         st.iframe(_wrap("""
@@ -191,7 +190,7 @@ def render_media_preview(file_path, file_name, file_ext, is_example, root_dir):
     tag = "example" if is_example else "uploaded"
     meta_row = f'<div class="pv-meta"><span class="pv-name">{display_name}</span><span class="pv-tag">{tag}</span></div>'
 
-    src_url = _example_static_url(root_dir, file_name) if is_example else None
+    src_url = _resolve_static_url(file_path, static_url, root_dir)
     b64 = ""
     if src_url is None:
         size = os.path.getsize(file_path)

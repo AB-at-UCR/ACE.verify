@@ -26,7 +26,8 @@ The preprocessing pipeline expects raw videos and label metadata in the DFDC for
 - `utilities/`: Grad-CAM, preprocessing helpers, timeline rendering, and shared model utilities.
 - `data/`: sample HDF5 files and trained checkpoints.
 - `scripts/`: notebooks, ablation outputs, and generated experiment artifacts.
-- `media/`: sample videos used by the demo.
+- `frontend/static/`: sample videos used by the demo, plus a runtime `uploads/` directory for user media served at `app/static/...`.
+
 
 ## Requirements
 
@@ -161,10 +162,14 @@ streamlit run frontend/app.py
 
 The demo supports:
 
-- Video and image uploads.
-- Example media loaded from `media/`.
+- Video and image uploads (persisted under `frontend/static/uploads/` and served at `app/static/uploads/...`).
+- Example media loaded from `frontend/static/`.
 - Model selection across EfficientNet-B4, XceptionNet, and ACE.verify variants.
 - Grad-CAM heatmaps and optional face-landmark overlays.
+
+Static serving must be enabled (see `.streamlit/config.toml`, or pass
+`--server.enableStaticServing=true`). Restart the Streamlit process after changing
+that setting so `/app/static/...` stops falling through to the SPA HTML shell.
 
 ## Outputs and Artifacts
 
