@@ -238,18 +238,20 @@ if analyze_clicked and not st.session_state.analyzed:
         st.rerun()
         
     with st.spinner(""):
-        # Load the chosen model
-        progress_bar = st.progress(0, text=f"Running inference with {model_choice}...")
+        # Single progress bar instance, updated in place across every stage so the
+        # UI shows one continuously-advancing bar instead of appending new ones.
+        # Stage budget: frames 0–25% · inference 25–50% · Grad-CAM 50–75% · timeline 75–100%.
+        progress_bar = st.progress(0, text=f"Loading {model_choice}…")
         model = load_model(model_choice)
 
         # Extract Frames & align face from uploaded video
         processor = utilities.FaceProcessor()
         with torch.no_grad():
             if st.session_state.file_ext in image_exts:
-                progress_bar = st.progress(33, text="Processing image…")
+                progress_bar.progress(10, text="Processing image…")
                 image_tensor = processor.extract_image(st.session_state.active_file_path)  # [1, C, H, W]
 
-                progress_bar = st.progress(66, text="Running inference…")
+                progress_bar.progress(25, text="Running inference…")
                 if "ACE.verify" in model_choice:
                     model_input = image_tensor.unsqueeze(2).repeat(1, 1, 32, 1, 1) # [B, C, T, H, W] -> repeat single image as pseudo-clip
                     output = model(model_input)
@@ -257,13 +259,13 @@ if analyze_clicked and not st.session_state.analyzed:
                     output = model(image_tensor).mean()
 
             elif st.session_state.file_ext in video_exts:
-                progress_bar = st.progress(33, text="Extracting & Processing frames…")
+                progress_bar.progress(10, text="Extracting & Processing frames…")
                 input_frames_tensor = processor.extract_frames(st.session_state.active_file_path)  # [T, C, H, W]
                 if input_frames_tensor.shape[0] == 0:
                     st.error("Could not decode video frames.")
                     st.stop()
 
-                progress_bar = st.progress(66, text="Running inference…")
+                progress_bar.progress(25, text="Running inference…")
                 if "ACE.verify" in model_choice:
                     model_input = input_frames_tensor.permute(1, 0, 2, 3).unsqueeze(0)  # [1, C, T, H, W]
                     output = model(model_input)
@@ -282,7 +284,7 @@ if analyze_clicked and not st.session_state.analyzed:
                 st.stop()
 
         # Run Grad-Cam generation
-        progress_bar = st.progress(70, text="Generating Grad-CAM…")
+        progress_bar.progress(50, text="Generating Grad-CAM…")
         fake_prob    = utilities.get_fake_prob(output)
         
         if st.session_state.file_ext in image_exts:
@@ -295,7 +297,7 @@ if analyze_clicked and not st.session_state.analyzed:
         heatmap_img = generate_gradcam(model=model, input_tensor=grad_input.clone(), intensity=fake_prob)
         
         # Run Scoring Timeline generation
-        progress_bar = st.progress(90, text="Scoring timeline…")
+        progress_bar.progress(75, text="Scoring timeline…")
         
         default_metadata_dict, duration_in_sec = {
             "Resolution":   "Unknown",
@@ -315,10 +317,11 @@ if analyze_clicked and not st.session_state.analyzed:
         else:
             timeline_scores = [fake_prob] * 56
         
+        progress_bar.progress(90, text="Scoring timeline…")
         regions = utilities.region_scores_from_heatmap(heatmap_img)
         evidence_flags = utilities.evidence_from_regions(regions)
         
-        progress_bar = st.progress(100, text="Done ✦")
+        progress_bar.progress(100, text="Done ✦")
         progress_bar.empty()
 
     st.session_state.results = {
