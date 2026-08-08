@@ -74,7 +74,7 @@ div[data-testid="stVerticalBlock"]:has(> div > div > div > div > .upload-card-an
     border-radius: 16px !important;
     padding: 2rem !important;
     margin: 2rem auto !important;
-    max-width: 900px !important;
+    max-width: 1080px !important; /* widened for the two-column split */
     box-shadow: 5px 5px 0px var(--ink) !important;
 }
 
@@ -89,6 +89,33 @@ div[data-testid="stVerticalBlock"]:has(> div > div > div > div > .upload-card-an
 }
 
 .upload-card-anchor { display: none; height: 0; }
+
+/* ── Upload Card: two-column split (controls 45% | preview 55%) ──
+   The global grid rules below force every stColumn to an equal 50% width, so
+   the split row needs more-specific, anchored overrides. */
+.upload-left-anchor, .upload-right-anchor { display: none; height: 0; }
+
+div[data-testid="stHorizontalBlock"]:has(.upload-left-anchor) {
+    flex-wrap: wrap !important;
+}
+
+div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:has(.upload-left-anchor) {
+    flex: 45 1 0% !important;
+    max-width: 45% !important;
+}
+div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:has(.upload-right-anchor) {
+    flex: 55 1 0% !important;
+    max-width: 55% !important;
+}
+
+/* Collapse the split into a single column on narrow viewports */
+@media (max-width: 900px) {
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:has(.upload-left-anchor),
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:has(.upload-right-anchor) {
+        flex: 1 1 100% !important;
+        max-width: 100% !important;
+    }
+}
 
 /* ── Section Labels ── */
 .section-label {

@@ -92,6 +92,23 @@ body { margin: 0; padding: 2px 6px 8px 2px; background: transparent; font-family
 .pv-ph-sub  { font-size: 0.78rem; margin-top: 0.3rem; opacity: 0.75; }
 """
 
+# Fill mode (pane_height set): stretch the preview to the full iframe height and
+# center the placeholder/notice content both horizontally and vertically.
+_FILL_CSS = """
+html, body { height: 100%; }
+body { overflow: hidden; display: flex; flex-direction: column; }
+.pv-meta { flex: 0 0 auto; }
+.pv-placeholder {
+    flex: 1 1 auto;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+}
+.pv-frame { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.pv-media { flex: 1 1 auto; height: auto; min-height: 0; }
+.pv-controls { flex: 0 0 auto; }
+.pv-note { margin: auto; }
+"""
+
 _SRC_JS = """
 var media = document.getElementById("pv-media");
 var objectUrl = null;
@@ -166,12 +183,16 @@ def _resolve_static_url(file_path, static_url, root_dir):
     return static_url_for(file_path, root_dir)
 
 
-def _wrap(body, script=""):
+def _wrap(body, script="", extra_css=""):
     script_tag = f"<script>(function() {{ {script} }})();</script>" if script else ""
-    return f"<!DOCTYPE html><html><head><style>{_CSS}</style></head><body>{body}{script_tag}</body></html>"
+    return f"<!DOCTYPE html><html><head><style>{_CSS}{extra_css}</style></head><body>{body}{script_tag}</body></html>"
 
 
-def render_media_preview(file_path, file_name, file_ext, is_example, root_dir, static_url=None):
+def render_media_preview(file_path, file_name, file_ext, is_example, root_dir, static_url=None, pane_height=None):
+    # pane_height pins the preview to a fixed pane (e.g. the right column of the
+    # upload card) and stretches its contents; None keeps the compact layout.
+    fill_css = _FILL_CSS if pane_height else ""
+
     # Fallback state: nothing selected yet
     if not file_path or not os.path.exists(file_path):
         st.iframe(_wrap("""
@@ -180,7 +201,7 @@ def render_media_preview(file_path, file_name, file_ext, is_example, root_dir, s
             <div class="pv-ph-text">No media selected</div>
             <div class="pv-ph-sub">Upload a file or pick an example to preview it here</div>
         </div>
-        """), height=175)
+        """, extra_css=fill_css), height=pane_height or 175)
         return
 
     file_ext = (file_ext or "").lower()
@@ -201,7 +222,7 @@ def render_media_preview(file_path, file_name, file_ext, is_example, root_dir, s
                 <div class="pv-note">⚠ File too large for inline preview ({size / (1024 * 1024):.0f} MB) — analysis still works.</div>
             </div>
             """
-            st.iframe(_wrap(body), height=110)
+            st.iframe(_wrap(body, extra_css=fill_css), height=pane_height or 110)
             return
         b64 = _encode_file(file_path, os.path.getmtime(file_path), size)
 
@@ -224,7 +245,7 @@ def render_media_preview(file_path, file_name, file_ext, is_example, root_dir, s
             </div>
         </div>
         """
-        st.iframe(_wrap(body, consts + _SRC_JS + _CONTROLS_JS), height=325)
+        st.iframe(_wrap(body, consts + _SRC_JS + _CONTROLS_JS, extra_css=fill_css), height=pane_height or 325)
     else:
         body = f"""
         {meta_row}
@@ -232,4 +253,4 @@ def render_media_preview(file_path, file_name, file_ext, is_example, root_dir, s
             <img id="pv-media" class="pv-media" alt="{display_name}">
         </div>
         """
-        st.iframe(_wrap(body, consts + _SRC_JS), height=280)
+        st.iframe(_wrap(body, consts + _SRC_JS, extra_css=fill_css), height=pane_height or 280)

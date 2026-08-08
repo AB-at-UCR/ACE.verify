@@ -116,13 +116,18 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ─── Upload Card ──────────────────────────────────────────────────────────────
+# ─── Upload Card (two-column split: controls | preview) ──────────────────────
+PREVIEW_PANE_HEIGHT = 570  # px — right pane matches the stacked left column
+
 with st.container():
     st.markdown('<div class="upload-card-anchor"></div>', unsafe_allow_html=True)
 
-    col_up, col_btn = st.columns([4, 1], gap="medium", vertical_alignment="bottom")
+    col_left, col_right = st.columns([45, 55], gap="medium")
 
-    with col_up:
+    # ── Left column: controls & configuration ──
+    with col_left:
+        st.markdown('<div class="upload-left-anchor"></div>', unsafe_allow_html=True)
+
         st.markdown('<div class="section-label">Upload media</div>', unsafe_allow_html=True)
         uploaded_file = st.file_uploader(
             "Drop video or image here",
@@ -130,44 +135,27 @@ with st.container():
             label_visibility="collapsed"
         )
 
-    with col_btn:
-        analyze_clicked = st.button("Analyze ✦", width='stretch')
+        st.markdown('<div class="section-label">Try example media</div>', unsafe_allow_html=True)
+        example_items = list(example_media.items())
+        for row_start in range(0, len(example_items), 3):  # wrapped rows, 3 pills per row
+            cols = st.columns(3, gap="small")
+            for offset, (label, filename) in enumerate(example_items[row_start:row_start + 3]):
+                if cols[offset].button(label, key=f"ex_{row_start + offset}", width='stretch'):
+                    if uploaded_file is not None:
+                        st.toast("Please remove the uploaded file first.", icon="⚠️")
+                    else:
+                        # Store the selection in session state so it survives the rerun
+                        cleanup_upload_disk()
+                        preset_path = os.path.join(root_dir, "frontend", "static", filename)
+                        st.session_state.example_file = {
+                            "path": preset_path,
+                            "name": filename,
+                            "static_url": f"app/static/{filename}",
+                        }
+                        st.session_state.upload_sig = None
+                        st.rerun() # Force rerun to update the UI immediately
 
-    col_o1, col_o2, col_o3 = st.columns(3)
-    with col_o1:
-        st.markdown('<div class="section-label">Detection model</div>', unsafe_allow_html=True)
-        model_choice = st.selectbox("Model", ["EfficientNet-B4 (Fast)", "XceptionNet (Accurate)", "ACE.verify (Best)"],
-                                    label_visibility="collapsed")
-    with col_o2:
-        st.markdown('<div class="section-label">Confidence threshold</div>', unsafe_allow_html=True)
-        threshold = st.slider("Threshold", 0.0, 1.0, 0.5, 0.01, label_visibility="collapsed")
-    with col_o3:
-        st.markdown('<div class="section-label">Options</div>', unsafe_allow_html=True)
-        show_heatmap   = st.checkbox("Show Grad-CAM", value=True)
-        show_landmarks = st.checkbox("Face landmarks", value=False)
-
-    st.markdown('<span class="section-label">Try example media:</span>', unsafe_allow_html=True)
-    
-    # Using a container to keep buttons together
-    with st.container():
-        cols = st.columns(len(example_media), gap="small")
-        for i, (label, filename) in enumerate(example_media.items()):
-            if cols[i].button(label, key=f"ex_{i}"):
-                if uploaded_file is not None:
-                    st.toast("Please remove the uploaded file first.", icon="⚠️")
-                else:
-                    # Store the selection in session state so it survives the rerun
-                    cleanup_upload_disk()
-                    preset_path = os.path.join(root_dir, "frontend", "static", filename)
-                    st.session_state.example_file = {
-                        "path": preset_path,
-                        "name": filename,
-                        "static_url": f"app/static/{filename}",
-                    }
-                    st.session_state.upload_sig = None
-                    st.rerun() # Force rerun to update the UI immediately
-
-        # ─── File Normalization ──────────────────────────────────────────────────────
+        # ─── File Normalization ──────────────────────────────────────────────
         if uploaded_file:
             # If user uploads something, clear any selected example
             st.session_state.example_file = None
@@ -207,23 +195,41 @@ with st.container():
             
             # UI Indicator that an example is loaded (Since we can't hack the uploader)
             st.toast(f"📁 **Example Loaded:** {st.session_state.active_file_name}")
-            if st.button("Reset Selection"):
+            if st.button("Reset Selection", width='stretch'):
                 clear_media_selection()
                 st.rerun()
         elif st.session_state.get("upload_sig"):
             # Upload was removed via the uploader's ✕ — clear the stale file state
             clear_media_selection()
 
-    # ─── Media Preview ────────────────────────────────────────────────────────
-    st.markdown('<div class="section-label">Media preview</div>', unsafe_allow_html=True)
-    utilities.render_media_preview(
-        file_path=st.session_state.active_file_path,
-        file_name=st.session_state.active_file_name,
-        file_ext=st.session_state.file_ext,
-        is_example=st.session_state.example_file is not None,
-        root_dir=root_dir,
-        static_url=st.session_state.get("active_static_url"),
-    )
+        st.markdown('<div class="section-label">Detection model</div>', unsafe_allow_html=True)
+        model_choice = st.selectbox("Model", ["EfficientNet-B4 (Fast)", "XceptionNet (Accurate)", "ACE.verify (Best)"],
+                                    label_visibility="collapsed")
+
+        col_thr, col_opt = st.columns(2, gap="small")
+        with col_thr:
+            st.markdown('<div class="section-label">Confidence threshold</div>', unsafe_allow_html=True)
+            threshold = st.slider("Threshold", 0.0, 1.0, 0.5, 0.01, label_visibility="collapsed")
+        with col_opt:
+            st.markdown('<div class="section-label">Options</div>', unsafe_allow_html=True)
+            show_heatmap   = st.checkbox("Show Grad-CAM", value=True)
+            show_landmarks = st.checkbox("Face landmarks", value=False)
+
+        analyze_clicked = st.button("Analyze ✦", width='stretch')
+
+    # ── Right column: media preview (full height of the left pane) ──
+    with col_right:
+        st.markdown('<div class="upload-right-anchor"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-label">Media preview</div>', unsafe_allow_html=True)
+        utilities.render_media_preview(
+            file_path=st.session_state.active_file_path,
+            file_name=st.session_state.active_file_name,
+            file_ext=st.session_state.file_ext,
+            is_example=st.session_state.example_file is not None,
+            root_dir=root_dir,
+            static_url=st.session_state.get("active_static_url"),
+            pane_height=PREVIEW_PANE_HEIGHT,
+        )
 
 # ─── Trigger analysis and store in session state ──────────────────────────────
 if analyze_clicked and not st.session_state.analyzed:
