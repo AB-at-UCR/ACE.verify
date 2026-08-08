@@ -11,6 +11,7 @@ import os
 import numpy as np
 import json
 from scipy.io import wavfile
+from typing import Union
 import torch
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,8 @@ def configure_logging(log_level: str = "INFO"):
   )
 
 
-def resolve_ffmpeg_executable(ffmpeg_bin: str | None = None) -> str:
+# def resolve_ffmpeg_executable(ffmpeg_bin: str | None = None) -> str:
+def resolve_ffmpeg_executable(ffmpeg_bin: Union[str, None] = None) -> str:
   if ffmpeg_bin:
     return ffmpeg_bin
 

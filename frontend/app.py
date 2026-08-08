@@ -116,13 +116,18 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ─── Upload Card ──────────────────────────────────────────────────────────────
+# ─── Upload Card (two-column split: controls | preview) ──────────────────────
+PREVIEW_PANE_HEIGHT = 570  # px — right pane matches the stacked left column
+
 with st.container():
     st.markdown('<div class="upload-card-anchor"></div>', unsafe_allow_html=True)
 
-    col_up, col_btn = st.columns([4, 1], gap="medium", vertical_alignment="bottom")
+    col_left, col_right = st.columns([45, 55], gap="medium")
 
-    with col_up:
+    # ── Left column: controls & configuration ──
+    with col_left:
+        st.markdown('<div class="upload-left-anchor"></div>', unsafe_allow_html=True)
+
         st.markdown('<div class="section-label">Upload media</div>', unsafe_allow_html=True)
         uploaded_file = st.file_uploader(
             "Drop video or image here",
@@ -130,44 +135,27 @@ with st.container():
             label_visibility="collapsed"
         )
 
-    with col_btn:
-        analyze_clicked = st.button("Analyze ✦", width='stretch')
+        st.markdown('<div class="section-label">Try example media</div>', unsafe_allow_html=True)
+        example_items = list(example_media.items())
+        for row_start in range(0, len(example_items), 3):  # wrapped rows, 3 pills per row
+            cols = st.columns(3, gap="small")
+            for offset, (label, filename) in enumerate(example_items[row_start:row_start + 3]):
+                if cols[offset].button(label, key=f"ex_{row_start + offset}", width='stretch'):
+                    if uploaded_file is not None:
+                        st.toast("Please remove the uploaded file first.", icon="⚠️")
+                    else:
+                        # Store the selection in session state so it survives the rerun
+                        cleanup_upload_disk()
+                        preset_path = os.path.join(root_dir, "frontend", "static", filename)
+                        st.session_state.example_file = {
+                            "path": preset_path,
+                            "name": filename,
+                            "static_url": f"app/static/{filename}",
+                        }
+                        st.session_state.upload_sig = None
+                        st.rerun() # Force rerun to update the UI immediately
 
-    col_o1, col_o2, col_o3 = st.columns(3)
-    with col_o1:
-        st.markdown('<div class="section-label">Detection model</div>', unsafe_allow_html=True)
-        model_choice = st.selectbox("Model", ["EfficientNet-B4 (Fast)", "XceptionNet (Accurate)", "ACE.verify (Best)"],
-                                    label_visibility="collapsed")
-    with col_o2:
-        st.markdown('<div class="section-label">Confidence threshold</div>', unsafe_allow_html=True)
-        threshold = st.slider("Threshold", 0.0, 1.0, 0.5, 0.01, label_visibility="collapsed")
-    with col_o3:
-        st.markdown('<div class="section-label">Options</div>', unsafe_allow_html=True)
-        show_heatmap   = st.checkbox("Show Grad-CAM", value=True)
-        show_landmarks = st.checkbox("Face landmarks", value=False)
-
-    st.markdown('<span class="section-label">Try example media:</span>', unsafe_allow_html=True)
-    
-    # Using a container to keep buttons together
-    with st.container():
-        cols = st.columns(len(example_media), gap="small")
-        for i, (label, filename) in enumerate(example_media.items()):
-            if cols[i].button(label, key=f"ex_{i}"):
-                if uploaded_file is not None:
-                    st.toast("Please remove the uploaded file first.", icon="⚠️")
-                else:
-                    # Store the selection in session state so it survives the rerun
-                    cleanup_upload_disk()
-                    preset_path = os.path.join(root_dir, "frontend", "static", filename)
-                    st.session_state.example_file = {
-                        "path": preset_path,
-                        "name": filename,
-                        "static_url": f"app/static/{filename}",
-                    }
-                    st.session_state.upload_sig = None
-                    st.rerun() # Force rerun to update the UI immediately
-
-        # ─── File Normalization ──────────────────────────────────────────────────────
+        # ─── File Normalization ──────────────────────────────────────────────
         if uploaded_file:
             # If user uploads something, clear any selected example
             st.session_state.example_file = None
@@ -207,23 +195,41 @@ with st.container():
             
             # UI Indicator that an example is loaded (Since we can't hack the uploader)
             st.toast(f"📁 **Example Loaded:** {st.session_state.active_file_name}")
-            if st.button("Reset Selection"):
+            if st.button("Reset Selection", width='stretch'):
                 clear_media_selection()
                 st.rerun()
         elif st.session_state.get("upload_sig"):
             # Upload was removed via the uploader's ✕ — clear the stale file state
             clear_media_selection()
 
-    # ─── Media Preview ────────────────────────────────────────────────────────
-    st.markdown('<div class="section-label">Media preview</div>', unsafe_allow_html=True)
-    utilities.render_media_preview(
-        file_path=st.session_state.active_file_path,
-        file_name=st.session_state.active_file_name,
-        file_ext=st.session_state.file_ext,
-        is_example=st.session_state.example_file is not None,
-        root_dir=root_dir,
-        static_url=st.session_state.get("active_static_url"),
-    )
+        st.markdown('<div class="section-label">Detection model</div>', unsafe_allow_html=True)
+        model_choice = st.selectbox("Model", ["EfficientNet-B4 (Fast)", "XceptionNet (Accurate)", "ACE.verify (Best)"],
+                                    label_visibility="collapsed")
+
+        col_thr, col_opt = st.columns(2, gap="small")
+        with col_thr:
+            st.markdown('<div class="section-label">Confidence threshold</div>', unsafe_allow_html=True)
+            threshold = st.slider("Threshold", 0.0, 1.0, 0.5, 0.01, label_visibility="collapsed")
+        with col_opt:
+            st.markdown('<div class="section-label">Options</div>', unsafe_allow_html=True)
+            show_heatmap   = st.checkbox("Show Grad-CAM", value=True)
+            show_landmarks = st.checkbox("Face landmarks", value=False)
+
+        analyze_clicked = st.button("Analyze ✦", width='stretch')
+
+    # ── Right column: media preview (full height of the left pane) ──
+    with col_right:
+        st.markdown('<div class="upload-right-anchor"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-label">Media preview</div>', unsafe_allow_html=True)
+        utilities.render_media_preview(
+            file_path=st.session_state.active_file_path,
+            file_name=st.session_state.active_file_name,
+            file_ext=st.session_state.file_ext,
+            is_example=st.session_state.example_file is not None,
+            root_dir=root_dir,
+            static_url=st.session_state.get("active_static_url"),
+            pane_height=PREVIEW_PANE_HEIGHT,
+        )
 
 # ─── Trigger analysis and store in session state ──────────────────────────────
 if analyze_clicked and not st.session_state.analyzed:
@@ -232,18 +238,20 @@ if analyze_clicked and not st.session_state.analyzed:
         st.rerun()
         
     with st.spinner(""):
-        # Load the chosen model
-        progress_bar = st.progress(0, text=f"Running inference with {model_choice}...")
+        # Single progress bar instance, updated in place across every stage so the
+        # UI shows one continuously-advancing bar instead of appending new ones.
+        # Stage budget: frames 0–25% · inference 25–50% · Grad-CAM 50–75% · timeline 75–100%.
+        progress_bar = st.progress(0, text=f"Loading {model_choice}…")
         model = load_model(model_choice)
 
         # Extract Frames & align face from uploaded video
         processor = utilities.FaceProcessor()
         with torch.no_grad():
             if st.session_state.file_ext in image_exts:
-                progress_bar = st.progress(33, text="Processing image…")
+                progress_bar.progress(10, text="Processing image…")
                 image_tensor = processor.extract_image(st.session_state.active_file_path)  # [1, C, H, W]
 
-                progress_bar = st.progress(66, text="Running inference…")
+                progress_bar.progress(25, text="Running inference…")
                 if "ACE.verify" in model_choice:
                     model_input = image_tensor.unsqueeze(2).repeat(1, 1, 32, 1, 1) # [B, C, T, H, W] -> repeat single image as pseudo-clip
                     output = model(model_input)
@@ -251,13 +259,13 @@ if analyze_clicked and not st.session_state.analyzed:
                     output = model(image_tensor).mean()
 
             elif st.session_state.file_ext in video_exts:
-                progress_bar = st.progress(33, text="Extracting & Processing frames…")
+                progress_bar.progress(10, text="Extracting & Processing frames…")
                 input_frames_tensor = processor.extract_frames(st.session_state.active_file_path)  # [T, C, H, W]
                 if input_frames_tensor.shape[0] == 0:
                     st.error("Could not decode video frames.")
                     st.stop()
 
-                progress_bar = st.progress(66, text="Running inference…")
+                progress_bar.progress(25, text="Running inference…")
                 if "ACE.verify" in model_choice:
                     model_input = input_frames_tensor.permute(1, 0, 2, 3).unsqueeze(0)  # [1, C, T, H, W]
                     output = model(model_input)
@@ -276,7 +284,7 @@ if analyze_clicked and not st.session_state.analyzed:
                 st.stop()
 
         # Run Grad-Cam generation
-        progress_bar = st.progress(70, text="Generating Grad-CAM…")
+        progress_bar.progress(50, text="Generating Grad-CAM…")
         fake_prob    = utilities.get_fake_prob(output)
         
         if st.session_state.file_ext in image_exts:
@@ -289,7 +297,7 @@ if analyze_clicked and not st.session_state.analyzed:
         heatmap_img = generate_gradcam(model=model, input_tensor=grad_input.clone(), intensity=fake_prob)
         
         # Run Scoring Timeline generation
-        progress_bar = st.progress(90, text="Scoring timeline…")
+        progress_bar.progress(75, text="Scoring timeline…")
         
         default_metadata_dict, duration_in_sec = {
             "Resolution":   "Unknown",
@@ -309,10 +317,11 @@ if analyze_clicked and not st.session_state.analyzed:
         else:
             timeline_scores = [fake_prob] * 56
         
+        progress_bar.progress(90, text="Scoring timeline…")
         regions = utilities.region_scores_from_heatmap(heatmap_img)
         evidence_flags = utilities.evidence_from_regions(regions)
         
-        progress_bar = st.progress(100, text="Done ✦")
+        progress_bar.progress(100, text="Done ✦")
         progress_bar.empty()
 
     st.session_state.results = {
