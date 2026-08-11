@@ -1,18 +1,6 @@
 # Setup and Deployment
 
-> Developer and DevOps guide covering local setup, Conda/Docker environments, GPU/CUDA configuration, Kubernetes/NRP deployment, and the GitHub Actions CI/CD pipeline.
-
----
-
-## Table of Contents
-
-1. [Prerequisites](#prerequisites)
-2. [Local Installation](#local-installation)
-3. [Docker Deployment](#docker-deployment)
-4. [Kubernetes / NRP Deployment](#kubernetes--nrp-deployment)
-5. [GitHub Actions CI/CD](#github-actions-cicd)
-6. [Environment Variable Reference](#environment-variable-reference)
-7. [Deployment Checklist](#deployment-checklist)
+> :material-docker: Developer and DevOps guide covering local setup, Conda/Docker environments, GPU/CUDA configuration, Kubernetes/NRP deployment, and the GitHub Actions CI/CD pipeline.
 
 ---
 
@@ -36,14 +24,30 @@
 
 ### FFmpeg Installation
 
-| OS | Command |
-|---|---|
-| **Ubuntu/Debian** | `sudo apt-get install -y ffmpeg` |
-| **macOS (Homebrew)** | `brew install ffmpeg` |
-| **Conda** | `conda install -c conda-forge ffmpeg` |
-| **Windows** | Download from [ffmpeg.org](https://ffmpeg.org/) and add to `PATH` |
+=== "Ubuntu / Debian"
+
+    ```bash
+    sudo apt-get update && sudo apt-get install -y ffmpeg
+    ```
+
+=== "macOS (Homebrew)"
+
+    ```bash
+    brew install ffmpeg
+    ```
+
+=== "Conda"
+
+    ```bash
+    conda install -c conda-forge ffmpeg
+    ```
+
+=== "Windows"
+
+    Download from [ffmpeg.org](https://ffmpeg.org/) and add the `bin` directory to your `PATH`.
 
 Verify installation:
+
 ```bash
 ffmpeg -version
 ```
@@ -56,7 +60,7 @@ ffmpeg -version
 
 > **Source**: `conda_env_new.yml`
 
-```bash
+```bash linenums="1"
 # Create the conda environment with Python 3.11 and the full ML stack
 conda env create -f conda_env_new.yml
 
@@ -71,18 +75,18 @@ The `conda_env_new.yml` environment includes:
 
 | Category | Packages |
 |---|---|
-| Core | python=3.11, ipykernel, ipython, jupyter_client |
-| ML/DL | torch, torchvision, torchaudio (via pip) |
-| CV | facenet-pytorch, opencv-python-headless, mediapipe |
-| Data | h5py, numpy, scipy, scikit-learn, matplotlib |
-| Web | streamlit |
-| Utils | tqdm, pyyaml, pydantic, requests, pillow, sqlalchemy, dataset, alembic |
+| Core | `python=3.11`, `ipykernel`, `ipython`, `jupyter_client` |
+| ML / DL | `torch`, `torchvision`, `torchaudio` (via pip) |
+| CV | `facenet-pytorch`, `opencv-python-headless`, `mediapipe` |
+| Data | `h5py`, `numpy`, `scipy`, `scikit-learn`, `matplotlib` |
+| Web | `streamlit` |
+| Utils | `tqdm`, `pyyaml`, `pydantic`, `requests`, `pillow`, `sqlalchemy`, `dataset`, `alembic` |
 
 ### Option 2: Minimal Conda + Pip
 
 > **Source**: `conda_env.yml`
 
-```bash
+```bash linenums="1"
 # Create a minimal conda environment (Python 3.13)
 conda env create -f conda_env.yml
 conda activate aceverify
@@ -96,7 +100,7 @@ pip install -e .
 
 ### Option 3: Virtual Environment
 
-```bash
+```bash linenums="1"
 python -m venv .venv
 source .venv/bin/activate
 
@@ -109,7 +113,7 @@ pip install -e .
 
 ### Verifying Installation
 
-```bash
+```bash linenums="1"
 # Check CLI entrypoints are installed
 aceverify-train --help
 aceverify-preprocess --help
@@ -132,10 +136,10 @@ The web application should be available at `http://localhost:8501`.
 | Stage | Details |
 |---|---|
 | **Base Image** | `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime` |
-| **System Dependencies** | ffmpeg, git, build-essential, libgl1, libglib2.0 |
-| **Python Dependencies** | numpy, h5py, timm, scikit-learn, matplotlib, ffmpeg-python, facenet-pytorch, Pillow, scipy, streamlit, opencv-python-headless, mediapipe, sqlalchemy, dataset, alembic, torchaudio==2.5.1, torchvision==0.20.1 |
+| **System Dependencies** | `ffmpeg`, `git`, `build-essential`, `libgl1`, `libglib2.0-0` |
+| **Python Dependencies** | `numpy`, `h5py`, `timm`, `scikit-learn`, `matplotlib`, `ffmpeg-python`, `facenet-pytorch`, `Pillow`, `scipy`, `streamlit`, `opencv-python-headless`, `mediapipe`, `sqlalchemy`, `dataset`, `alembic`, `torchaudio==2.5.1`, `torchvision==0.20.1` |
 | **Copied Files** | `.streamlit/`, `aceverify/`, `evaluation/`, `frontend/`, `models/`, `utilities/`, `README.md`, `README_NRP.md` |
-| **Exposed Port** | 8501 |
+| **Exposed Port** | `8501` |
 | **Entry Point** | `streamlit run frontend/app.py --server.address=0.0.0.0 --server.port=8501 --server.enableStaticServing=true` |
 
 ### Building the Image
@@ -172,9 +176,9 @@ docker run --rm -it \
   -v "$PWD":/workspace \
   aceverify:latest \
   aceverify-train \
-  --train_path /workspace/data/train_data-003.h5 \
-  --test_path /workspace/data/test_data.h5 \
-  --checkpoint-path /workspace/results/aceverify_final.pth
+    --train_path /workspace/data/train_data-003.h5 \
+    --test_path /workspace/data/test_data.h5 \
+    --checkpoint-path /workspace/results/aceverify_final.pth
 ```
 
 ### Running Evaluation Inside the Container
@@ -185,8 +189,8 @@ docker run --rm -it \
   -v "$PWD":/workspace \
   aceverify:latest \
   aceverify-evaluate \
-  --h5 /workspace/data/test_data.h5 \
-  --checkpoint /workspace/results/aceverify_final.pth
+    --h5 /workspace/data/test_data.h5 \
+    --checkpoint /workspace/results/aceverify_final.pth
 ```
 
 ### Running Preprocessing Inside the Container
@@ -198,7 +202,8 @@ docker run --rm -it \
   aceverify-preprocess <zip_file> <subfolder> --output /workspace/data/processed_data.h5
 ```
 
-> **Note**: The `PYTHONPATH=/workspace` environment variable (set in the Dockerfile) ensures that the package entrypoints and module imports work correctly inside the container.
+!!! note "PYTHONPATH"
+    The `PYTHONPATH=/workspace` environment variable (set in the Dockerfile) ensures that the package entrypoints and module imports work correctly inside the container.
 
 ---
 
@@ -212,9 +217,9 @@ docker run --rm -it \
 flowchart TD
     A[Developer] --> B[Build Docker image]
     B --> C[Push to container registry]
-    C --> D[kubectl apply -f nrp-pvc.yaml]
+    C --> D["kubectl apply -f nrp-pvc.yaml<br/>(one-time)"]
     D --> E[Stage code + data to PVC<br/>copy-to-pvc.sh]
-    E --> F[kubectl apply -f nrp-gpu-job.yaml]
+    E --> F["kubectl apply -f nrp-gpu-job.yaml"]
     F --> G[GPU Job trains ACEVerifyModel<br/>RTX-A6000 node]
     G --> H[Fetch results<br/>copy-from-pvc.sh]
 ```
@@ -227,7 +232,7 @@ flowchart TD
 kubectl apply -f assets/templates/nrp-pvc.yaml
 ```
 
-```yaml
+```yaml linenums="1" title="assets/templates/nrp-pvc.yaml"
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -257,6 +262,7 @@ bash scripts/copy-to-pvc.sh ./ aceverify-pvc /workspace
 ```
 
 This script:
+
 1. Creates an ephemeral Alpine pod with the PVC mounted at `/workspace`.
 2. Copies the local directory contents into the pod's `/workspace` path.
 3. Deletes the ephemeral pod.
@@ -286,7 +292,7 @@ kubectl apply -f assets/templates/nrp-gpu-job.yaml
 kubectl wait --for=condition=complete job/aceverify-train --timeout=48h
 ```
 
-```yaml
+```yaml linenums="1" title="assets/templates/nrp-gpu-job.yaml"
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -307,9 +313,10 @@ spec:
               cpu: "4"
               memory: "16Gi"
               nvidia.com/gpu: "1"
-          command: ["python", "-u", "aceverify/train.py", "--train_path",
-                    "/workspace/data/train.h5", "--test_path",
-                    "/workspace/data/test.h5", "--checkpoint-path",
+          command: ["python", "-u", "aceverify/train.py",
+                    "--train_path", "/workspace/data/train.h5",
+                    "--test_path", "/workspace/data/test.h5",
+                    "--checkpoint-path",
                     "/workspace/results/aceverify_final.pth"]
           volumeMounts:
             - mountPath: /workspace
@@ -329,9 +336,9 @@ spec:
 | Setting | Value | Description |
 |---|---|---|
 | Job Name | `aceverify-train` | Kubernetes job identifier |
-| CPU Request/Limit | `4` | 4 CPU cores |
-| Memory Request/Limit | `16Gi` | 16 GiB RAM |
-| GPU Request/Limit | `1` | 1 NVIDIA GPU |
+| CPU Request / Limit | `4` | 4 CPU cores |
+| Memory Request / Limit | `16Gi` | 16 GiB RAM |
+| GPU Request / Limit | `1` | 1 NVIDIA GPU |
 | Node Selector | `NVIDIA-RTX-A6000` | Targets RTX A6000 GPU nodes on NRP |
 | GPU Tolerations | `nvidia.com/gpu: Exists` | Allows scheduling on GPU nodes |
 | Backoff Limit | `2` | Maximum retry attempts on failure |
@@ -346,7 +353,7 @@ kubectl apply -f assets/templates/nrp-sweep-job.yaml
 kubectl wait --for=condition=complete job/aceverify-sweep --timeout=48h
 ```
 
-```yaml
+```yaml linenums="1" title="assets/templates/nrp-sweep-job.yaml"
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -354,7 +361,9 @@ metadata:
 spec:
   completions: 4
   parallelism: 4
-  # ... rest similar to nrp-gpu-job.yaml with --epochs 5 ...
+  template:
+    spec:
+      # ... rest similar to nrp-gpu-job.yaml with --epochs 5 ...
 ```
 
 | Setting | Value | Description |
@@ -372,6 +381,7 @@ bash scripts/copy-from-pvc.sh aceverify-pvc /workspace/results ./out
 ```
 
 This script:
+
 1. Creates an ephemeral Alpine pod with the PVC mounted at `/workspace`.
 2. Copies the `/workspace/results` directory from the pod to the local `./out` directory.
 3. Deletes the ephemeral pod.
@@ -386,11 +396,11 @@ This script:
 
 ```mermaid
 flowchart LR
-    A[Push to main<br/>or tag v*.*.*] --> B[Checkout repository]
+    A["Push to main<br/>or tag v*.*.*"] --> B[Checkout repository]
     B --> C[Set up Docker Buildx]
-    C --> D[Log in to Docker Hub<br/>secrets.DOCKERHUB_USERNAME<br/>secrets.DOCKERHUB_TOKEN]
+    C --> D["Log in to Docker Hub<br/>secrets.DOCKERHUB_USERNAME<br/>secrets.DOCKERHUB_TOKEN"]
     D --> E[Extract metadata<br/>tags + labels]
-    E --> F[Build and push image<br/>to DOCKERHUB_USERNAME/ace_verify]
+    E --> F["Build and push image<br/>to DOCKERHUB_USERNAME/ace_verify"]
 ```
 
 ### Workflow Configuration
@@ -414,11 +424,11 @@ flowchart LR
 
 ### Setting Up Secrets
 
-1. Go to your GitHub repository settings.
-2. Navigate to **Secrets and Variables** > **Actions**.
+1. Go to your GitHub repository **Settings**.
+2. Navigate to **Secrets and Variables** → **Actions**.
 3. Add the required repository secrets:
    - `DOCKERHUB_USERNAME` = your Docker Hub username
-   - `DOCKERHUB_TOKEN` = your Docker Hub access token (generate at hub.docker.com under Account Settings > Security)
+   - `DOCKERHUB_TOKEN` = your Docker Hub access token (generate at `hub.docker.com` under **Account Settings** → **Security**)
 
 ---
 
@@ -431,18 +441,18 @@ flowchart LR
 | Variable | Value | Purpose |
 |---|---|---|
 | `DEBIAN_FRONTEND` | `noninteractive` | Suppress apt-get prompts during image build |
-| `PYTHONDONTWRITEBYTECODE` | `1` | Prevent .pyc file generation |
+| `PYTHONDONTWRITEBYTECODE` | `1` | Prevent `.pyc` file generation |
 | `PYTHONUNBUFFERED` | `1` | Enable unbuffered output for real-time logging |
 | `PIP_NO_CACHE_DIR` | `1` | Disable pip cache to reduce image size |
 | `PYTHONPATH` | `/workspace` | Enable module imports inside the container |
 
 ### Runtime Environment Variables
 
-| Variable | Purpose | Default | Used By |
-|---|---|---|---|
-| `FFMPEG_BIN` | Override path to ffmpeg executable | Resolved from `PATH` | `aceverify/preprocess.py:31` |
-| `CUDA_VISIBLE_DEVICES` | Restrict GPU visibility | All GPUs | PyTorch/CUDA runtime |
-| `FFMPEG_BIN` (env) | Fallback for ffmpeg resolution if `--ffmpeg-bin` not provided | `os.environ.get('FFMPEG_BIN')` | `aceverify/preprocess.py:35` |
+| Variable | Purpose | Default |
+|---|---|---|
+| `FFMPEG_BIN` | Override path to ffmpeg executable | Resolved from `PATH` |
+| `CUDA_VISIBLE_DEVICES` | Restrict GPU visibility | All GPUs |
+| `FFMPEG_BIN` (env) | Fallback for ffmpeg resolution if `--ffmpeg-bin` not provided | `os.environ.get('FFMPEG_BIN')` |
 
 ### Streamlit Configuration
 
@@ -454,6 +464,7 @@ enableStaticServing = true
 ```
 
 This enables Streamlit's static file serving, which is required for:
+
 - Serving preset videos from `frontend/static/` at `app/static/...`
 - Serving user uploads from `frontend/static/uploads/` at `app/static/uploads/...`
 - Low-latency same-origin video playback in the upload-card media preview

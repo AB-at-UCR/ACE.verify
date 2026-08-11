@@ -1,31 +1,12 @@
 # UI and Frontend Components
 
-> Full documentation of the ACE.verify web interface architecture, component hierarchy, responsive layout guidelines, progress bar/state management, and custom CSS design system.
-
----
-
-## Table of Contents
-
-1. [Technology Stack](#technology-stack)
-2. [Application Entry Point](#application-entry-point)
-3. [Component Hierarchy](#component-hierarchy)
-4. [Session State Management](#session-state-management)
-5. [Page Layout & Responsive Design](#page-layout--responsive-design)
-6. [Custom CSS Design System](#custom-css-design-system)
-7. [Navbar Component](#navbar-component)
-8. [Hero Section](#hero-section)
-9. [Upload Card](#upload-card)
-10. [Media Preview](#media-preview)
-11. [Results Section](#results-section)
-12. [Frame Inspector](#frame-inspector)
-13. [Footer](#footer)
-14. [MIME Patching for Static Video Serving](#mime-patching-for-static-video-serving)
+> :material-monitor-dashboard: Full documentation of the ACE.verify web interface architecture, component hierarchy, responsive layout guidelines, progress bar/state management, and custom CSS design system.
 
 ---
 
 ## Technology Stack
 
-| Component | Technology | Version/Details |
+| Component | Technology | Version / Details |
 |---|---|---|
 | Framework | Streamlit | Web app framework, port 8501 |
 | Styling | CSS3 | Custom CSS injected via `st.markdown(unsafe_allow_html=True)` |
@@ -41,7 +22,7 @@
 
 The application entry point performs three critical setup steps:
 
-```python
+```python linenums="1" title="frontend/app.py"
 # 1. Resolve the repository root directory
 current_file_path = pathlib.Path(__file__).resolve()
 root_dir = str(current_file_path.parent.parent)
@@ -102,34 +83,34 @@ The application uses `st.session_state` to manage state across Streamlit reruns 
 
 ### Initial State
 
-```python
+```python linenums="1" title="frontend/app.py"
 if "analyzed" not in st.session_state:
     st.session_state.results = {}          # Detection results dict
     st.session_state.analyzed = False      # Whether analysis has been run
 
 if "file_ext" not in st.session_state:
-    st.session_state.file_ext = None       # Current file extension (.mp4, .jpg, etc.)
-    st.session_state.example_file = None   # Selected example media {path, name, static_url}
-    st.session_state.active_file_path = None       # Absolute path of current media
-    st.session_state.active_file_name = None       # Display name of current media
-    st.session_state.active_static_url = None      # app/static/... URL for preview
-    st.session_state.upload_sig = None             # (name, size) of current upload
-    st.session_state.upload_disk_path = None       # Path under frontend/static/uploads/
+    st.session_state.file_ext = None       # Current file extension
+    st.session_state.example_file = None   # Selected example media
+    st.session_state.active_file_path = None
+    st.session_state.active_file_name = None
+    st.session_state.active_static_url = None
+    st.session_state.upload_sig = None     # (name, size) of current upload
+    st.session_state.upload_disk_path = None
 ```
 
 ### State Variables
 
 | Variable | Type | Purpose |
 |---|---|---|
-| `results` | `dict` | Contains all detection outputs (model, fake_prob, is_fake, heatmap_img, evidence_flags, regions, metadata, timeline_scores, media, duration_in_sec) |
+| `results` | `dict` | All detection outputs (model, fake_prob, heatmap_img, evidence_flags, regions, metadata, timeline_scores, media, duration_in_sec) |
 | `analyzed` | `bool` | Flag indicating whether analysis has been completed |
 | `file_ext` | `str \| None` | Extension of the current media file |
 | `example_file` | `dict \| None` | Selected example media metadata |
 | `active_file_path` | `str \| None` | Absolute path of the currently selected media |
 | `active_file_name` | `str \| None` | Display name of the currently selected media |
 | `active_static_url` | `str \| None` | Streamlit static URL for preview playback |
-| `upload_sig` | `tuple \| None` | `(name, size)` signature of the current upload to detect changes |
-| `upload_disk_path` | `str \| None` | Filesystem path of the saved upload under `frontend/static/uploads/` |
+| `upload_sig` | `tuple \| None` | `(name, size)` signature of the current upload |
+| `upload_disk_path` | `str \| None` | Filesystem path under `frontend/static/uploads/` |
 
 ### State Transitions
 
@@ -155,11 +136,11 @@ stateDiagram-v2
 
 ## Page Layout & Responsive Design
 
-> **Source**: `frontend/app.py:21`, `frontend/app.css`
+> **Sources**: `frontend/app.py:21`, `frontend/app.css`
 
 ### Page Configuration
 
-```python
+```python linenums="1" title="frontend/app.py"
 st.set_page_config(
     page_title="ACE.verify - Deepfake Detector",
     page_icon="☑️",
@@ -232,7 +213,7 @@ The media preview pane is pinned to a fixed height of 570px to match the height 
 
 ### CSS Variables (Design Tokens)
 
-```css
+```css linenums="1" title="frontend/app.css"
 :root {
     --cream:      #F5F0E8;   /* Primary background */
     --cream-dark: #EDE8DC;   /* Card background */
@@ -246,7 +227,7 @@ The media preview pane is pinned to a fixed height of 570px to match the height 
     --yellow:     #F5C518;   /* Uncertain verdict */
     --card-bg:    #EDE8DC;   /* Analysis card background */
     --border:     #C8BFA8;   /* Border color */
-    --mono:       'DM Mono', monospace;  /* Monospace font stack */
+    --mono:       'DM Mono', monospace;
 }
 ```
 
@@ -264,7 +245,7 @@ The media preview pane is pinned to a fixed height of 570px to match the height 
 
 The CSS defines an anchored selector pattern for targeting Streamlit's internal DOM structure. Zero-height hidden anchor divs (e.g., `upload-card-anchor`, `analysis-card-anchor`) are injected via `st.markdown()` and used in `:has()` selectors:
 
-```css
+```css linenums="1" title="frontend/app.css"
 /* Upload card */
 div[data-testid="stVerticalBlock"]:has(> div > div > div > div > .upload-card-anchor) {
     background-color: var(--card-bg) !important;
@@ -282,7 +263,8 @@ div[data-testid="stVerticalBlock"]:has(> div > div > div > div > .analysis-card-
 }
 ```
 
-The design system uses a **neo-brutalist** aesthetic with hard-edged drop shadows (`box-shadow: Npx Npx 0px var(--ink)`), thick borders (2px), and rounded corners (12-16px).
+!!! tip "Neo-brutalist design"
+    The design system uses a **neo-brutalist** aesthetic with hard-edged drop shadows (`box-shadow: Npx Npx 0px var(--ink)`), thick borders (2px), and rounded corners (12&ndash;16px).
 
 ---
 
@@ -354,32 +336,32 @@ The upload card is the primary interaction surface, containing media upload cont
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Upload Card (max-width: 1080px, box-shadow: 5px 5px)   │
-│  ┌──────────────────┐  ┌────────────────────────────┐  │
-│  │ LEFT COLUMN (45%)│  │ RIGHT COLUMN (55%)         │  │
-│  │                  │  │                            │  │
-│  │ Upload media     │  │ Media preview              │  │
-│  │ [File uploader]  │  │ ┌────────────────────────┐│  │
-│  │                  │  │ │  Video/Image Preview   ││  │
-│  │ Try example media│  │ │  (height: 570px)       ││  │
-│  │ [pill][pill]     │  │ │                        ││  │
-│  │ [pill][pill]     │  │ └────────────────────────┘│  │
-│  │ [pill]           │  │                            │  │
-│  │                  │  │                            │  │
-│  │ Detection model  │  │                            │  │
-│  │ [Selectbox]      │  │                            │  │
-│  │                  │  │                            │  │
-│  │ Confidence   Opt │  │                            │  │
-│  │ [Slider] [✓][✓]  │  │                            │  │
-│  │                  │  │                            │  │
-│  │ [Analyze ✦]      │  │                            │  │
-│  └──────────────────┘  └────────────────────────────┘  │
+│  Upload Card (max-width: 1080px, box-shadow: 5px 5px)    │
+│  ┌──────────────────┐  ┌────────────────────────────┐   │
+│  │ LEFT COLUMN (45%)│  │ RIGHT COLUMN (55%)         │   │
+│  │                  │  │                            │   │
+│  │ Upload media     │  │ Media preview              │   │
+│  │ [File uploader]  │  │ ┌────────────────────────┐ │   │
+│  │                  │  │ │  Video/Image Preview   │ │   │
+│  │ Try example media│  │ │  (height: 570px)       │ │   │
+│  │ [pill][pill]     │  │ │                        │ │   │
+│  │ [pill][pill]     │  │ └────────────────────────┘ │   │
+│  │ [pill]           │  │                            │   │
+│  │                  │  │                            │   │
+│  │ Detection model  │  │                            │   │
+│  │ [Selectbox]      │  │                            │   │
+│  │                  │  │                            │   │
+│  │ Confidence   Opt │  │                            │   │
+│  │ [Slider] [✓][✓]  │  │                            │   │
+│  │                  │  │                            │   │
+│  │ [Analyze ✦]      │  │                            │   │
+│  └──────────────────┘  └────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ### File Uploader
 
-```python
+```python linenums="1" title="frontend/app.py"
 uploaded_file = st.file_uploader(
     "Drop video or image here",
     type=["mp4", "mov", "avi", "jpg", "jpeg", "png"],
@@ -421,8 +403,7 @@ model_choice = st.selectbox(
 
 ### Confidence Threshold & Options
 
-```python
-# Two-column layout for threshold and options
+```python linenums="1" title="frontend/app.py"
 col_thr, col_opt = st.columns(2, gap="small")
 
 with col_thr:
@@ -444,16 +425,15 @@ When a user uploads a file, the application:
 5. Computes the file extension and static URL for preview.
 6. Stores all metadata in `st.session_state`.
 
-```python
+```python linenums="1" title="frontend/app.py"
 if uploaded_file:
     st.session_state.example_file = None
     upload_sig = (uploaded_file.name, uploaded_file.size)
-    if st.session_state.get("upload_sig") != upload_sig or not st.session_state.active_file_path:
+    if st.session_state.get("upload_sig") != upload_sig \
+       or not st.session_state.active_file_path:
         cleanup_upload_disk()
         path, display_name, static_url = utilities.save_upload_bytes(
-            uploaded_file.getvalue(),
-            uploaded_file.name,
-            root_dir,
+            uploaded_file.getvalue(), uploaded_file.name, root_dir,
         )
         # ... store in session state ...
 ```
@@ -471,7 +451,7 @@ The `render_media_preview()` function renders a compact media preview inside the
 | State | Display |
 |---|---|
 | No media selected | Dashed placeholder with film icon: "No media selected" |
-| File too large (>80 MB) | Notice: "File too large for inline preview — analysis still works" |
+| File too large (>80 MB) | Notice: "File too large for inline preview &mdash; analysis still works" |
 | Video file (`.mp4`, `.mov`, `.avi`) | Custom video player with play/pause, mute, and seek controls |
 | Image file (`.jpg`, `.jpeg`, `.png`) | Full-width image preview |
 
@@ -481,8 +461,8 @@ The video player includes custom HTML5 controls:
 
 ```html
 <div class="pv-controls">
-    <button id="pv-play" class="pv-btn" title="Play / pause">▶</button>
-    <button id="pv-mute" class="pv-btn" title="Mute / unmute">🔊</button>
+    <button id="pv-play" class="pv-btn" title="Play / pause">&#9654;</button>
+    <button id="pv-mute" class="pv-btn" title="Mute / unmute">&#128266;</button>
     <input id="pv-seek" class="pv-seek" type="range" min="0" max="100" step="0.05" value="0">
     <span id="pv-time" class="pv-time">0:00 / 0:00</span>
 </div>
@@ -518,8 +498,8 @@ verdict_class = "verdict-fake" if is_fake else "verdict-real"
 
 | State | CSS Class | Background | Icon |
 |---|---|---|---|
-| Fake | `.verdict-fake` | `--red` (#E84040) | ⚠️ |
-| Authentic | `.verdict-real` | `--green` (#2ECC71) | ✅ |
+| Fake | `.verdict-fake` | `--red` (#E84040) | :material-alert: |
+| Authentic | `.verdict-real` | `--green` (#2ECC71) | :material-check-circle: |
 
 The banner displays the verdict text (Instrument Serif, 2rem), a detail subtitle, and the fake probability percentage.
 
@@ -547,8 +527,11 @@ The confidence gauge displays the fake probability as a large percentage with a 
 <div class="gauge-container">
     <div class="gauge-value" style="color:{fill_color}">{fake_prob*100:.0f}%</div>
     <div class="gauge-label">Fake Probability</div>
-    <div class="gauge-bar-bg"><div class="gauge-bar-fill"
-        style="width:{fake_prob*100:.0f}%;background:{fill_color}"></div></div>
+    <div class="gauge-bar-bg">
+      <div class="gauge-bar-fill"
+           style="width:{fake_prob*100:.0f}%;background:{fill_color}">
+      </div>
+    </div>
 </div>
 ```
 
@@ -570,7 +553,7 @@ Evidence flags are rendered as colored chips:
 | Chip Class | Score Range | Color |
 |---|---|---|
 | `.chip-green` | < 35% | #E6F9F0 bg, #27AE60 text |
-| `.chip-amber` | 35&ndash;60% | #FFF3DC bg, #D4891A text |
+| `.chip-amber` | 35%&ndash;60% | #FFF3DC bg, #D4891A text |
 | `.chip-red` | > 60% | #FFE8E8 bg, #E84040 text |
 
 ### Metadata Card
@@ -603,7 +586,7 @@ The timeline is rendered as an HTML bar chart with 56 segments (or `timeline_sco
 
 Four action buttons are rendered in a row:
 
-```python
+```python linenums="1" title="frontend/app.py"
 act1, act2, act3, act4 = st.columns(4, gap="small")
 with act1: st.button("⬇ Export PDF Report", key="btn_pdf")
 with act2: st.button("📋 Copy JSON Results", key="btn_json")
@@ -622,8 +605,9 @@ with act4:
 
 The frame inspector allows users to scrub through video frames and view per-frame Grad-CAM overlays:
 
-```python
-frame_col, slider_col = st.columns([1, 3], gap="large", vertical_alignment="center")
+```python linenums="1" title="frontend/app.py"
+frame_col, slider_col = st.columns([1, 3], gap="large",
+                                    vertical_alignment="center")
 
 with slider_col:
     frame_idx = st.slider("Frame", 0, int(duration_in_sec * 30 - 1), 45)
@@ -633,17 +617,16 @@ with slider_col:
         np.linspace(0, duration_in_sec, len(timeline_scores)),
         timeline_scores
     ))
-    # Display time, frame number, and score
 
 with frame_col:
-    # Map slider frame index to available media frames
     mapped_idx = int(np.interp(
         frame_idx,
         [0, max(1, int(duration_in_sec * 30) - 1)],
         [0, total_avail - 1]
     ))
     grad_input = media[mapped_idx:mapped_idx+1]
-    thumbnail = generate_gradcam(model=model, input_tensor=grad_input.clone(), intensity=0.85)
+    thumbnail = generate_gradcam(model=model, input_tensor=grad_input.clone(),
+                                  intensity=0.85)
     st.image(thumbnail, width='stretch')
 ```
 
@@ -670,9 +653,12 @@ The footer includes a disclaimer noting that results are probabilistic and for r
 
 > **Source**: `utilities/static_media.py:22`
 
-Streamlit versions ≤ 1.50 force non-allowlisted file extensions (including `.mp4`) to `Content-Type: text/plain` with `X-Content-Type-Options: nosniff`, which prevents `<video>` playback. The `ensure_static_video_mime()` function patches this:
+!!! warning "Streamlit ≤ 1.50 MIME bug"
+    Streamlit versions ≤ 1.50 force non-allowlisted file extensions (including `.mp4`) to `Content-Type: text/plain` with `X-Content-Type-Options: nosniff`, which prevents `<video>` playback.
 
-```python
+The `ensure_static_video_mime()` function patches this:
+
+```python linenums="1" title="utilities/static_media.py"
 def ensure_static_video_mime() -> None:
     global _MIME_PATCHED
     if _MIME_PATCHED:
@@ -693,6 +679,7 @@ def ensure_static_video_mime() -> None:
 ```
 
 This function:
+
 1. Registers MIME types for video extensions via `mimetypes.add_type()`.
 2. Extends Streamlit's internal `SAFE_APP_STATIC_FILE_EXTENSIONS` allowlist to include video extensions.
 3. Uses a `_MIME_PATCHED` guard to ensure the patch only runs once.

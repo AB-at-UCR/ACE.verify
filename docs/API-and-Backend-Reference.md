@@ -1,18 +1,6 @@
 # API and Backend Reference
 
-> Detailed documentation for all CLI entrypoints, Python module APIs, data structures (HDF5), model classes, evaluation scripts, and progress streaming.
-
----
-
-## Table of Contents
-
-1. [CLI Entrypoints](#cli-entrypoints)
-2. [Python Module APIs](#python-module-apis)
-3. [Data Structures](#data-structures)
-4. [Model Class Reference](#model-class-reference)
-5. [Evaluation Script Reference](#evaluation-script-reference)
-6. [Progress Streaming](#progress-streaming)
-7. [Environment Configuration](#environment-configuration)
+> :material-console: Detailed documentation for all CLI entrypoints, data structures (HDF5), model classes, evaluation scripts, and progress streaming.
 
 ---
 
@@ -55,7 +43,7 @@ aceverify-train \
 | `--checkpoint-path` | `str` | No | `results/aceverify_final.pth` | Where to save the final checkpoint |
 | `--epochs` | `int` | No | `10` | Number of training epochs |
 | `--batch-size` | `int` | No | `8` | Training and validation batch size |
-| `--log-level` | `str` | No | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `--log-level` | `str` | No | `INFO` | Logging verbosity |
 
 #### Behavior
 
@@ -117,8 +105,8 @@ aceverify-preprocess \
    - Extracts the video to the temp directory.
    - Uses ffmpeg to extract 16 frames at 5s offset (`-ss 00:00:05 -frames:v 16 -q:v 2`).
    - Uses ffmpeg to extract 0.5s audio at 5s offset (`-ss 00:00:05 -t 0.5 -acodec pcm_s16le`).
-   - Runs MTCNN face detection on frames 1-16 until a face is found.
-   - Expands the face bounding box by +/-80px (x) and +/-50px (y).
+   - Runs MTCNN face detection on frames 1&ndash;16 until a face is found.
+   - Expands the face bounding box by ±80px (x) and ±50px (y).
    - Crops and resizes all 16 frames to the face region.
    - Saves the 16-frame video and audio to the HDF5 file under a group named after the video.
    - Cleans up temporary files.
@@ -128,13 +116,13 @@ aceverify-preprocess \
 
 ```
 /
-├── video_name_1/
+├── {video_basename}/
 │   ├── video          # Dataset: [16, 224, 224, 3] uint8, gzip-compressed
 │   ├── audio          # Dataset: [N] float32, gzip-compressed
 │   └── (attrs)
-│       └── label      # 1 (FAKE) or 0 (REAL)
-├── video_name_2/
-│   ├── ...
+│       └── label      # int: 0 (Real) or 1 (Fake)
+├── {next_video}/
+│   └── ...
 ```
 
 ---
@@ -165,16 +153,10 @@ aceverify-evaluate \
 #### Behavior
 
 1. Loads the `ACEDataset` from the HDF5 file in non-training mode.
-2. Creates a `DataLoader` with `batch_size`, `num_workers=2`, `pin_memory=True`.
+2. Creates a `DataLoader` with `batch_size=8`, `num_workers=2`, `pin_memory=True`.
 3. Instantiates `ACEVerifyModel()` and loads the checkpoint state dict.
-4. Runs inference with `torch.no_grad()` and applies a sigmoid threshold of `0.5`.
+4. Runs inference with `torch.no_grad()` and applies a sigmoid threshold of $0.5$.
 5. Saves predictions to CSV at `{checkpoint_path without ext}_eval.csv`.
-
-#### Output
-
-| File | Location | Description |
-|---|---|---|
-| Predictions CSV | `{checkpoint_path without ext}_eval.csv` | Columns: `label` (ground truth), `pred` (model prediction) |
 
 ---
 
@@ -216,15 +198,15 @@ ACEVerifyModel()
 
 Initializes the multimodal architecture with the following components:
 
-| Component | Class/Type | Dimensions | Trainable |
+| Component | Class / Type | Dimensions | Trainable |
 |---|---|---|---|
 | Video backbone | `timm vit_base_patch16_224` (ViT-B/16) | Input: `[B, C, H, W]`, Output: 768 | Last 4 blocks only |
 | Temporal layer | `nn.GRU(768, 512, bidirectional=True)` | Input: `[B, T, 768]`, Output: `[B, T, 1024]` | Yes |
 | Temporal pool | `TemporalAttentionPooling(1024)` | Input: `[B, T, 1024]`, Output: `[B, 1024]` | Yes |
-| Video projection | `LayerNorm + Linear(1024,256) + GELU + Dropout(0.2)` | Output: 256 | Yes |
+| Video projection | `LayerNorm + Linear(1024, 256) + GELU + Dropout(0.2)` | Output: 256 | Yes |
 | Audio encoder | `SpectrogramEncoder()` (EfficientNet-B0) | Input: `[B, 1, H, W]`, Output: 256 | Yes |
-| Fusion gate | `Linear(512,256) + GELU + Linear(256,256) + Sigmoid` | Output: 256 | Yes |
-| Classifier | `Linear(1024,512) + GELU + Dropout(0.4) + Linear(512,128) + GELU + Dropout(0.2) + Linear(128,1)` | Output: 1 | Yes |
+| Fusion gate | `Linear(512, 256) + GELU + Linear(256, 256) + Sigmoid` | Output: 256 | Yes |
+| Classifier | `Linear(1024, 512) + GELU + Dropout(0.4) + Linear(512, 128) + GELU + Dropout(0.2) + Linear(128, 1)` | Output: 1 | Yes |
 
 #### Forward Method
 
@@ -235,21 +217,19 @@ def forward(self, video, audio_spec=None):
 | Parameter | Type | Shape | Description |
 |---|---|---|---|
 | `video` | `torch.Tensor` | `[B, C, T, H, W]` | Video frames tensor (channels, temporal, height, width) |
-| `audio_spec` | `torch.Tensor \| None` | `[B, C, T, H, W]` or `[B, T, H, W]` or `[B, 1, H, W]` | Mel-spectrogram tensor; if `None`, a zero spectrogram is used |
+| `audio_spec` | `torch.Tensor \| None` | `[B, C, T, H, W]` or `[B, T, H, W]` | Mel-spectrogram tensor; if `None`, a zero spectrogram is used |
 
 **Returns**: `torch.Tensor` of shape `[B, 1]` containing the raw classification logit.
 
 #### Fusion Math
 
-```python
-gate = self.fusion_gate(fusion_input)                          # [B, 256], sigmoid-weighted
-fused_features = torch.cat([
-    video_combined * gate,                                     # Gated video
-    audio_features * (1.0 - gate),                             # Gated audio
-    video_combined - audio_features,                           # Video-audio difference
-    video_combined * audio_features,                           # Video-audio product
-], dim=-1)                                                     # [B, 1024]
-```
+The fusion gate computes a sigmoid-weighted gate value $g \in [0, 1]$. The fused representation combines four 256-dim vectors:
+
+$$
+\mathbf{f} = \Big[\,\mathbf{v} \odot g \;\Big\|\; \mathbf{a} \odot (1 - g) \;\Big\|\; \mathbf{v} - \mathbf{a} \;\Big\|\; \mathbf{v} \odot \mathbf{a}\,\Big]
+$$
+
+where $\mathbf{v}$ is the video feature, $\mathbf{a}$ is the audio feature, and $\odot$ denotes element-wise multiplication. The result is a 1024-dim concatenated vector fed to the classifier.
 
 ---
 
@@ -264,7 +244,7 @@ ACEDataset(h5_path, indices=None, is_training=False)
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `h5_path` | `str` | *required* | Path to the HDF5 file |
-| `indices` | `list[int] \| None` | `None` | Sample indices to include; `None` uses all samples |
+| `indices` | `list[int] \| None` | `None` | Sample indices to include; `None` loads all |
 | `is_training` | `bool` | `False` | If `True`, applies data augmentation |
 
 #### `__getitem__(idx)`
@@ -273,8 +253,8 @@ Returns a tuple `(video, spec, label)`:
 
 | Element | Type | Shape | Description |
 |---|---|---|---|
-| `video` | `torch.Tensor` | `[C, T, H, W]` = `[3, 16, 224, 224]` | Normalized video frames in `[0, 1]` |
-| `spec` | `torch.Tensor` | `[1, 1, 224, 224]` | Mel-spectrogram interpolated to 224x224 |
+| `video` | `torch.Tensor` | `[3, 16, 224, 224]` | Normalized video frames in $[0, 1]$ |
+| `spec` | `torch.Tensor` | `[1, 1, 224, 224]` | Mel-spectrogram interpolated to 224×224 |
 | `label` | `torch.Tensor` | scalar `long` | `0` (Real) or `1` (Fake) |
 
 ---
@@ -298,7 +278,6 @@ train_model(config)
 | `train_path` | `str` | HDF5 training file path |
 | `test_path` | `str` | HDF5 test file path |
 | `batch_size` | `int` | Data loader batch size |
-| `checkpoint_path` | `str` | Where to save the checkpoint |
 | `shuffle_data` | `bool` | Whether to shuffle training data (default: `True`) |
 | `train_indices` | `list[int]` | Pre-selected training indices (default: `[]`) |
 | `test_indices` | `list[int]` | Pre-selected test indices (default: `[]`) |
@@ -327,7 +306,7 @@ load_data(indices, path, n, training, shuffle_data=True, dataset_class=ACEDatase
 
 **Returns**: An `ACEDataset` (or `dataset_class`) instance.
 
-**Behavior**: If `indices` is empty, reads all labels from the HDF5 file, identifies real and fake sample indices, and randomly selects `n // 2` from each class (balanced sampling).
+**Behavior**: If `indices` is empty, reads all labels from the HDF5 file, identifies real (`label=0`) and fake (`label=1`) sample indices, and randomly selects $n // 2$ from each class (balanced sampling).
 
 ---
 
@@ -405,7 +384,7 @@ Each HDF5 file contains multiple top-level groups, one per video sample:
 
 | Dataset | Shape | Dtype | Compression | Description |
 |---|---|---|---|---|
-| `video` | `(16, 224, 224, 3)` | `uint8` | `gzip` | 16 processed face-cropped frames at 224x224 resolution |
+| `video` | `(16, 224, 224, 3)` | `uint8` | `gzip` | 16 processed face-cropped frames at 224×224 resolution |
 | `audio` | `(N,)` | `float32` | `gzip` | Raw audio waveform samples (0.5s clip extracted at 5s offset) |
 
 #### Attribute Specifications
@@ -441,16 +420,20 @@ The preprocessing pipeline expects a JSON file within the zip archive that maps 
 
 > **Source**: `aceverify/model.py:43`
 
-Full multimodal deepfake detection model. See the [Architecture and Pipeline](Architecture-and-Pipeline) page for detailed architecture documentation.
+Full multimodal deepfake detection model. See the [Architecture and Pipeline](Architecture-and-Pipeline.md) page for detailed architecture documentation.
 
 ### `DeepfakeEfficientNet`
 
 > **Source**: `models/efficientnet.py:5`
 
-```python
+```python linenums="1" title="models/efficientnet.py"
 class DeepfakeEfficientNet(nn.Module):
     def __init__(self):
-        self.model = timm.create_model('tf_efficientnet_b4', pretrained=True, num_classes=1)
+        super().__init__()
+        self.model = timm.create_model(
+            'tf_efficientnet_b4', pretrained=True, num_classes=1
+        )
+
     def forward(self, x):
         return self.model(x)
 ```
@@ -461,10 +444,14 @@ A lightweight 2D image classifier wrapping the EfficientNet-B4 (Noisy Student) b
 
 > **Source**: `models/xception.py:4`
 
-```python
+```python linenums="1" title="models/xception.py"
 class DeepfakeXception(nn.Module):
     def __init__(self):
-        self.model = timm.create_model('xception', pretrained=True, num_classes=1)
+        super().__init__()
+        self.model = timm.create_model(
+            'xception', pretrained=True, num_classes=1
+        )
+
     def forward(self, x):
         return self.model(x)
 ```
@@ -475,7 +462,7 @@ A 2D image classifier wrapping the XceptionNet backbone. Input: `[B, 3, 224, 224
 
 > **Source**: `models/ace_verify.py:3`
 
-```python
+```python linenums="1" title="models/ace_verify.py"
 class ACEVerifyIntegration(aceverify.model.ACEVerifyModel):
     def __init__(self):
         super().__init__()
@@ -495,8 +482,6 @@ Extends `ACEVerifyModel` to support loading JIT-serialized (TorchScript) model w
 ```python
 def evaluate(h5_path, checkpoint_path, batch_size=8, device=None):
 ```
-
-Runs batch inference on an HDF5 test set and saves predictions to CSV.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -551,12 +536,11 @@ Runs inference for the TimeSformer model (`facebook/timesformer-base-finetuned-k
 
 The Streamlit web application uses a single `st.progress` bar that is updated in place across all analysis stages:
 
-```python
+```python linenums="1" title="frontend/app.py"
 progress_bar = st.progress(0, text=f"Loading {model_choice}…")
 
 # Stage 1: Frame extraction (0% → 25%)
 progress_bar.progress(10, text="Extracting & Processing frames…")
-# ... process video ...
 progress_bar.progress(25, text="Running inference…")
 
 # Stage 2: Grad-CAM generation (25% → 50%)
@@ -583,7 +567,7 @@ The bar is emptied (`progress_bar.empty()`) after completion to remove it from t
 
 ### State Update Pattern
 
-```python
+```python linenums="1" title="frontend/app.py"
 if analyze_clicked and not st.session_state.analyzed:
     # ... run analysis ...
     st.session_state.results = { ... }
@@ -620,7 +604,7 @@ Enables Streamlit's static file serving, which is required by the upload-card me
 
 | Variable | Value | Purpose |
 |---|---|---|
-| `DEBIAN_FRONTEND` | `noninteractive` | Suppress apt-get prompts |
+| `DEBIAN_FRONTEND` | `noninteractive` | Suppress apt-get prompts during image build |
 | `PYTHONDONTWRITEBYTECODE` | `1` | Prevent .pyc file generation |
 | `PYTHONUNBUFFERED` | `1` | Enable unbuffered output for real-time logging |
 | `PIP_NO_CACHE_DIR` | `1` | Disable pip cache to reduce image size |
@@ -632,4 +616,4 @@ Enables Streamlit's static file serving, which is required by the upload-card me
 |---|---|---|
 | `FFMPEG_BIN` | Override path to ffmpeg executable | Resolved from `PATH` |
 | `CUDA_VISIBLE_DEVICES` | Restrict GPU visibility | All GPUs |
-| `FFMPEG_BIN` (in `preprocess.py`) | Fallback if `--ffmpeg-bin` not provided | `os.environ.get('FFMPEG_BIN')` |
+| `FFMPEG_BIN` (env) | Fallback for ffmpeg resolution if `--ffmpeg-bin` not provided | `os.environ.get('FFMPEG_BIN')` |

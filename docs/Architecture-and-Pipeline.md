@@ -1,23 +1,6 @@
 # Architecture and Pipeline
 
-> Deep dive into the ACE.verify multimodal deepfake detection architecture, the ML/video processing pipeline, frame extraction mechanics, model selection, Grad-CAM overlay generation, and confidence scoring.
-
----
-
-## Table of Contents
-
-1. [System Overview](#system-overview)
-2. [Model Architecture: ACEVerifyModel](#model-architecture-aceverifymodel)
-3. [Dataset & Data Pipeline](#dataset--data-pipeline)
-4. [Preprocessing Pipeline](#preprocessing-pipeline)
-5. [Training Pipeline](#training-pipeline)
-6. [Frame Extraction Mechanics](#frame-extraction-mechanics)
-7. [Model Selection](#model-selection)
-8. [Grad-CAM Overlay Generation](#grad-cam-overlay-generation)
-9. [Region-Based Evidence Scoring](#region-based-evidence-scoring)
-10. [Confidence Scoring](#confidence-scoring)
-11. [Temporal Fakeness Timeline](#temporal-fakeness-timeline)
-12. [Evaluation & Benchmarking](#evaluation--benchmarking)
+> :material-sitemap: Deep dive into the ACE.verify multimodal deepfake detection architecture, the ML/video processing pipeline, frame extraction mechanics, model selection, Grad-CAM overlay generation, and confidence scoring.
 
 ---
 
@@ -65,7 +48,7 @@ The system operates across three stages:
 
 > **Source**: `aceverify/model.py`
 
-The `ACEVerifyModel` is a multimodal architecture that fuses video frame features with audio spectrogram features through a gated mechanism, then classifies the fused representation as authentic (0) or fake (1).
+The `ACEVerifyModel` is a multimodal architecture that fuses video frame features with audio spectrogram features through a gated mechanism, then classifies the fused representation as authentic (`0`) or fake (`1`).
 
 ### Architecture Diagram
 
@@ -101,20 +84,26 @@ flowchart LR
 
 Reduces the sequence of per-frame features into a single fixed-length representation via learned attention weights:
 
-```python
+```python linenums="1" title="aceverify/model.py"
 class TemporalAttentionPooling(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int = 256):
         self.attention = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),   # Project features
-            nn.Tanh(),                           # Non-linearity
-            nn.Linear(hidden_dim, 1),            # Attention scores
+            nn.Linear(input_dim, hidden_dim),   # (1)
+            nn.Tanh(),                           # (2)
+            nn.Linear(hidden_dim, 1),            # (3)
         )
 
-    def forward(self, sequence):
+    def forward(self, sequence):  # [B, T, input_dim]
         attention_logits = self.attention(sequence)
-        attention_weights = torch.softmax(attention_logits, dim=1)
-        return torch.sum(sequence * attention_weights, dim=1)  # Weighted sum
+        attention_weights = torch.softmax(attention_logits, dim=1)  # (4)
+        return torch.sum(sequence * attention_weights, dim=1)       # (5)
 ```
+
+1. :material-arrow-right: Project each timestep's features to a hidden representation.
+2. :material-arrow-right: Apply `Tanh` non-linearity to bound the logits.
+3. :material-arrow-right: Produce a single scalar attention score per timestep.
+4. :material-arrow-right: `Softmax` over the temporal dimension converts scores to probabilities.
+5. :material-arrow-right: Element-wise multiply + sum yields the attention-pooled vector.
 
 **Input**: Sequence tensor of shape `[B, T, input_dim]` (default `input_dim=1024` from the bidirectional GRU output).
 
@@ -124,14 +113,14 @@ class TemporalAttentionPooling(nn.Module):
 
 Encodes Mel-spectrograms into a 256-dimensional audio feature vector:
 
-```python
+```python linenums="1" title="aceverify/model.py"
 class SpectrogramEncoder(nn.Module):
     def __init__(self, feature_dim: int = 1280):
         self.backbone = timm.create_model(
             "tf_efficientnet_b0_ns",   # EfficientNet-B0 (Noisy Student)
             pretrained=True,
             in_chans=1,                # Single-channel spectrogram input
-            num_classes=0,             # Feature extractor only
+            num_classes=0,             # Feature extractor only (1)
         )
         self.projection = nn.Sequential(
             nn.LayerNorm(feature_dim),  # 1280
@@ -141,9 +130,7 @@ class SpectrogramEncoder(nn.Module):
         )
 ```
 
-**Input**: Mel-spectrogram tensor `[B, 1, H, W]`.
-
-**Output**: 256-dimensional audio feature vector `[B, 256]`.
+1. :material-arrow-right: `num_classes=0` strips the classification head, returning the 1280-dim pooled feature.
 
 #### ACEVerifyModel Forward Pass (`model.py:87`)
 
@@ -151,31 +138,40 @@ The forward pass orchestrates video feature extraction, audio encoding, gated fu
 
 1. **Video Reshape**: Input `[B, C, T, H, W]` is permuted and reshaped to `[B*T, C, H, W]` so each frame is processed individually by the ViT backbone.
 2. **ViT Feature Extraction**: Produces 768-dim features per frame, reshaped back to `[B, T, 768]`.
-3. **Temporal Modeling**: A bidirectional GRU (`768 → 512`) processes the sequence, outputting 1024-dim features per timestep.
+3. **Temporal Modeling**: A bidirectional GRU ($768 \rightarrow 512$) processes the sequence, outputting 1024-dim features per timestep.
 4. **Temporal Pooling**: `TemporalAttentionPooling` reduces `[B, T, 1024]` to `[B, 1024]`, then projected to 256-dim via the video projection layer.
 5. **Audio Encoding**: If no audio is provided, a zero spectrogram is used. The audio tensor is normalized in shape and passed through the `SpectrogramEncoder`.
-6. **Gated Fusion**: The fusion gate computes a sigmoid-weighted gate value. The fused representation combines:
-   - `video_combined * gate`
-   - `audio_features * (1.0 - gate)`
-   - `video_combined - audio_features`
-   - `video_combined * audio_features`
+6. **Gated Fusion**: The fusion gate computes a sigmoid-weighted gate value $g \in [0,1]$. The fused representation combines:
+   - $\mathbf{v} \cdot g$ &mdash; gated video features
+   - $\mathbf{a} \cdot (1 - g)$ &mdash; gated audio features
+   - $\mathbf{v} - \mathbf{a}$ &mdash; video-audio difference
+   - $\mathbf{v} \odot \mathbf{a}$ &mdash; video-audio Hadamard product
 
    These four 256-dim vectors are concatenated to form a 1024-dim fused feature.
 
 7. **Classification**: The 3-layer classifier MLP maps the 1024-dim fused features to a single raw logit.
 
+The fusion gate value can be expressed as:
+
+$$
+g = \sigma\!\Big(W_2 \cdot \text{GELU}(W_1 \, [\mathbf{v}; \mathbf{a}])\Big)
+$$
+
+where $W_1 \in \mathbb{R}^{256 \times 512}$ and $W_2 \in \mathbb{R}^{256 \times 256}$.
+
 #### Transfer Learning Strategy
 
 The ViT-B/16 backbone uses a selective freezing strategy:
 
-```python
+```python linenums="1" title="aceverify/model.py"
 for param in self.video_model.parameters():
-    param.requires_grad = False         # Freeze all ViT layers
+    param.requires_grad = False         # Freeze all ViT layers (1)
 for param in self.video_model.blocks[-4:].parameters():
-    param.requires_grad = True          # Unfreeze last 4 transformer blocks
+    param.requires_grad = True          # Unfreeze last 4 blocks (2)
 ```
 
-This keeps the pre-trained feature extraction capabilities of the early ViT layers while allowing the final transformer blocks and all task-specific layers (GRU, fusion gate, classifier) to fine-tune for deepfake detection.
+1. :material-snowflake: All pre-trained ViT parameters are frozen to preserve low-level feature representations.
+2. :material-fire: Only the last 4 transformer blocks are unfrozen, allowing the model to adapt high-level features for deepfake detection while retaining the pre-trained initialization.
 
 ---
 
@@ -204,10 +200,10 @@ Each `__getitem__` call performs the following:
    if indices[-1] >= total_frames:
        indices = np.linspace(0, total_frames - 1, num_output_frames).astype(int)
    ```
-3. **Tensor conversion**: Selected frames are converted to a float tensor with shape `[C, T, H, W]` (channels-first, temporal dimension) and normalized to `[0, 1]` range.
+3. **Tensor conversion**: Selected frames are converted to a float tensor with shape `[C, T, H, W]` (channels-first, temporal dimension) and normalized to $[0, 1]$ range.
 4. **Data augmentation** (training only):
-   - `ColorJitter(brightness=0.2, contrast=0.2)` &mdash; Random brightness/contrast adjustment
-   - `RandomErasing(p=0.5, scale=(0.02, 0.1), ratio=(0.3, 3.3), value=0)` &mdash; Occlusion augmentation to improve robustness
+   - `ColorJitter(brightness=0.2, contrast=0.2)` &mdash; Random brightness/contrast adjustment.
+   - `RandomErasing(p=0.5, scale=(0.02, 0.1), ratio=(0.3, 3.3), value=0)` &mdash; Occlusion augmentation to improve robustness.
 5. **Audio spectrogram**: The raw audio is loaded, downmixed to mono if multi-channel, and transformed via `MelSpectrogram`:
    ```python
    spectrogram_transform = MelSpectrogram(
@@ -217,7 +213,7 @@ Each `__getitem__` call performs the following:
        hop_length=160,
    )
    ```
-   The resulting spectrogram is interpolated to `(224, 224)` via bilinear interpolation.
+   The resulting spectrogram is interpolated to $(224, 224)$ via bilinear interpolation.
 6. **Label**: The `label` attribute from the HDF5 group is converted to a `torch.long` tensor. Labels are `0` (Real) or `1` (Fake).
 
 ### HDF5 Storage Format
@@ -225,11 +221,14 @@ Each `__getitem__` call performs the following:
 Each HDF5 file contains multiple top-level groups, one per video sample:
 
 ```
-sample_video_name/
-├── video          # Dataset: [16, 224, 224, 3] uint8, gzip-compressed
-├── audio          # Dataset: [N] float32, gzip-compressed (raw audio samples)
-└── (attrs)
-    └── label      # Attribute: int (0=Real, 1=Fake)
+/
+├── {video_basename}/
+│   ├── video          # numpy.ndarray [16, 224, 224, 3] uint8, gzip-compressed
+│   ├── audio          # numpy.ndarray [N] float32, gzip-compressed (raw audio samples)
+│   └── (attrs)
+│       └── label      # int: 0 (Real) or 1 (Fake)
+├── {next_video}/
+│   └── ...
 ```
 
 ---
@@ -287,7 +286,7 @@ ffmpeg -loglevel error -ss 00:00:05 -i input.mp4 -vn -t 0.5 -acodec pcm_s16le au
 
 The pipeline uses `MTCNN` from `facenet-pytorch` with `keep_all=False` to detect a single face per frame. It iterates through frames 1 to 16 until a face is detected, then applies the bounding box to all frames:
 
-```python
+```python linenums="1" title="aceverify/preprocess.py"
 mtcnn = MTCNN(keep_all=False, device=device)
 for i in range(1, 17):
     face_boxes, _ = mtcnn.detect(frame)
@@ -323,45 +322,42 @@ The DFDC JSON metadata file maps video filenames to `"FAKE"` or `"REAL"` string 
 
 | Hyperparameter | Value | Source |
 |---|---|---|
-| Learning rate | `5e-5` | `train.py:240` |
-| Optimizer | `AdamW` (weight_decay `1e-4`) | `train.py:252` |
-| Loss function | `BCEWithLogitsLoss` (pos_weight `2.0`) | `train.py:251` |
-| Scheduler | `StepLR` (step_size `2`, gamma `0.5`) | `train.py:253` |
+| Learning rate | $5 \times 10^{-5}$ | `train.py:240` |
+| Optimizer | `AdamW` (weight_decay $1 \times 10^{-4}$) | `train.py:252` |
+| Loss function | `BCEWithLogitsLoss` (pos_weight $= 2.0$) | `train.py:251` |
+| Scheduler | `StepLR` (step_size $= 2$, $\gamma = 0.5$) | `train.py:253` |
 | Default epochs | `10` | `train.py:222` |
 | Default batch size | `8` | `train.py:223` |
 | Device | `cuda` if available, else `cpu` | `train.py:239` |
+
+The loss function is the Binary Cross-Entropy with Logits, weighted to address class imbalance:
+
+$$
+\mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N}\Big[w \cdot y_i \log\sigma(z_i) + (1-y_i)\log(1-\sigma(z_i))\Big]
+$$
+
+where $w = 2.0$ is the positive class weight, $z_i$ is the raw logit, and $\sigma$ is the sigmoid function.
 
 ### Training Loop (`train.py:69`)
 
 The `train_model()` function orchestrates the full training loop:
 
-1. **Checkpoint Resume**: Attempts to load an existing checkpoint from `checkpoint_path`. Supports both state-dict and dict-wrapped formats:
-   ```python
-   checkpoint = torch.load(checkpoint_path, map_location=device)
-   if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
-       model.load_state_dict(checkpoint['model_state_dict'])
-   else:
-       model.load_state_dict(checkpoint)
-   ```
-   On `FileNotFoundError`, training continues from the pretrained ViT weights.
-
+1. **Checkpoint Resume**: Attempts to load an existing checkpoint from `checkpoint_path`. Supports both `state_dict` and dict-wrapped (`{'model_state_dict': ...}`) formats. On `FileNotFoundError`, training continues from the pretrained ViT weights.
 2. **Per-Epoch Training**:
    - Rebuilds the training dataset each epoch (random balanced sampling of real/fake samples).
-   - Forward pass: `outputs = model(videos, specs)`
-   - Loss: `loss = criterion(outputs, labels)`
-   - Backward + optimizer step with gradient zeroing.
-   - Predictions: `(torch.sigmoid(outputs) > 0.5).float()`
+   - Forward pass: `outputs = model(videos, specs)`.
+   - Loss: `loss = criterion(outputs, labels)`.
+   - Backward pass + optimizer step with gradient zeroing.
+   - Predictions: `(torch.sigmoid(outputs) > 0.5).float()`.
    - Training accuracy logged every 10 steps.
-
 3. **Per-Epoch Validation**:
    - Runs on a held-out test dataset (200 samples, balanced).
    - Collects predictions and ground-truth labels.
    - Validation accuracy computed and logged.
-
 4. **Metrics & Checkpointing**:
-   - After all epochs, a `classification_report` is generated using `sklearn.metrics`.
-   - Final model state is saved to `checkpoint_path`.
-   - Per-epoch metrics (train accuracy, test accuracy) are exported to CSV at `checkpoint_path.replace('.pth', '_metrics.csv')`.
+   - After all epochs, generates a `classification_report` via `sklearn.metrics`.
+   - Saves the final model state dict to `checkpoint_path`.
+   - Exports per-epoch metrics (train accuracy, test accuracy) to CSV at `checkpoint_path.replace('.pth', '_metrics.csv')`.
 
 ### Data Sampling for Training (`train.py:27`)
 
@@ -369,20 +365,20 @@ The `load_data()` function handles balanced sampling of real and fake samples:
 
 1. If no indices are provided, reads all label attributes from the HDF5 file.
 2. Identifies real (`label=0`) and fake (`label=1`) sample indices.
-3. Randomly selects `n // 2` samples from each class (balanced).
+3. Randomly selects $n // 2$ samples from each class (balanced).
 4. Shuffles the combined indices.
 5. Returns an `ACEDataset` instance with the selected indices.
 
 ### CLI Arguments (`train.py:217`)
 
-| Argument | Type | Default | Description |
-|---|---|---|---|
-| `--train_path` | `str` | *required* | Path to the training HDF5 file |
-| `--test_path` | `str` | *required* | Path to the test HDF5 file |
-| `--checkpoint-path` | `str` | `results/aceverify_final.pth` | Where to save the checkpoint |
-| `--epochs` | `int` | `10` | Number of training epochs |
-| `--batch-size` | `int` | `8` | Batch size |
-| `--log-level` | `str` | `INFO` | Logging verbosity |
+| Argument | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `--train_path` | `str` | Yes | &mdash; | Path to the training HDF5 file |
+| `--test_path` | `str` | Yes | &mdash; | Path to the test HDF5 file |
+| `--checkpoint-path` | `str` | No | `results/aceverify_final.pth` | Where to save the checkpoint |
+| `--epochs` | `int` | No | `10` | Number of training epochs |
+| `--batch-size` | `int` | No | `8` | Training and validation batch size |
+| `--log-level` | `str` | No | `INFO` | Logging verbosity |
 
 ---
 
@@ -390,64 +386,67 @@ The `load_data()` function handles balanced sampling of real and fake samples:
 
 > **Sources**: `aceverify/preprocess.py`, `utilities/preprocess.py`, `app/services.py`
 
-There are three frame extraction implementations across the codebase:
+There are three frame extraction implementations across the codebase, each tailored to a specific runtime context.
 
-### 1. Preprocessing Pipeline (`aceverify/preprocess.py`)
+=== "Preprocessing Pipeline"
 
-Used by the `aceverify-preprocess` CLI entrypoint. Extracts frames and audio directly via `ffmpeg` subprocess:
+    Used by the `aceverify-preprocess` CLI entrypoint. Extracts frames and audio directly via `ffmpeg` subprocess:
 
-```bash
-# Frame extraction (16 frames at 5s offset)
-ffmpeg -loglevel error -ss 00:00:05 -i input.mp4 -frames:v 16 -q:v 2 output_%02d.jpg
+    ```bash
+    # Frame extraction (16 frames at 5s offset)
+    ffmpeg -loglevel error -ss 00:00:05 -i input.mp4 -frames:v 16 -q:v 2 output_%02d.jpg
 
-# Audio extraction (0.5s clip at 5s offset)
-ffmpeg -loglevel error -ss 00:00:05 -i input.mp4 -vn -t 0.5 -acodec pcm_s16le output.wav
-```
+    # Audio extraction (0.5s clip at 5s offset)
+    ffmpeg -loglevel error -ss 00:00:05 -i input.mp4 -vn -t 0.5 -acodec pcm_s16le output.wav
+    ```
 
-Face detection uses **MTCNN** (facenet-pytorch) with `keep_all=False` for single-face detection.
+    Face detection uses **MTCNN** (`facenet-pytorch`) with `keep_all=False` for single-face detection.
 
-### 2. Web Application Face Processor (`utilities/preprocess.py`)
+=== "Web App FaceProcessor"
 
-Used by the Streamlit web application. The `FaceProcessor` class uses **MediaPipe Face Landmarker** for alignment:
+    Used by the Streamlit web application. The `FaceProcessor` class uses **MediaPipe Face Landmarker** for alignment:
 
-```python
-class FaceProcessor:
-    def __init__(self, target_size=(224, 224)):
-        self.face_landmarker = self.init_face_landmarker(self.root_dir)
-        self.transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225]),
-        ])
-```
+    ```python linenums="1" title="utilities/preprocess.py"
+    class FaceProcessor:
+        def __init__(self, target_size=(224, 224)):
+            self.face_landmarker = self.init_face_landmarker(self.root_dir)
+            self.transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225],
+                ),
+            ])
+    ```
 
-- `extract_image()`: Reads an image, converts BGR to RGB, aligns the face via landmark-based affine transformation, and applies ImageNet normalization.
-- `extract_frames()`: Uses `cv2.VideoCapture` to decode video frames, converts each to RGB, resizes to 224x224, and aligns the face.
-- `get_alignment_matrix()`: Computes an affine transformation matrix that rotates and scales the image to align eye corners (landmarks 33 and 263) to canonical positions at `(0.35, 0.4)` and `(0.65, 0.4)` of the image dimensions.
+    - `extract_image()`: Reads an image, converts BGR to RGB, aligns the face via landmark-based affine transformation, and applies ImageNet normalization.
+    - `extract_frames()`: Uses `cv2.VideoCapture` to decode video frames, converts each to RGB, resizes to 224×224, and aligns the face.
+    - `get_alignment_matrix()`: Computes an affine transformation matrix that rotates and scales the image to align eye corners (landmarks 33 and 263) to canonical positions at $(0.35, 0.4)$ and $(0.65, 0.4)$.
 
-### 3. Legacy App Services (`app/services.py`)
+=== "Legacy App Services"
 
-Used by the older `app/streamlit_app.py`. Similar to the preprocessing pipeline but stores intermediate results in a temporary directory:
+    Used by the older `app/streamlit_app.py`. Similar to the preprocessing pipeline but stores intermediate results in a temporary directory:
 
-```python
-# Extract 16 frames
-ffmpeg -ss 00:00:05 -i input.mp4 -frames:v 16 -q:v 2 frame_%02d.jpg
+    ```python
+    # Extract 16 frames
+    subprocess.run(['ffmpeg', '-ss', '00:00:05', '-i', f'{path}.mp4',
+                    '-frames:v', '16', '-q:v', '2', f'{path}_%02d.jpg'])
 
-# Extract 0.5s audio
-ffmpeg -ss 00:00:05 -i input.mp4 -vn -t 0.5 -acodec pcm_s16le audio.wav
+    # Extract 0.5s audio
+    subprocess.run(['ffmpeg', '-ss', '00:00:05', '-i', f'{path}.mp4',
+                    '-vn', '-t', '0.5', '-acodec', 'pcm_s16le', f'{path}_audio.wav'])
 
-# MTCNN face detection + crop to 224x224
-mtcnn = MTCNN(keep_all=False)
-face_box = mtcnn.detect(frame)[0][0].astype(int)
-# Expand: x1-=80, y1-=50, x2+=80, y2+=50
-image.crop(face_box).resize((224, 224))
-```
+    # MTCNN face detection + crop to 224x224
+    mtcnn = MTCNN(keep_all=False)
+    face_box = mtcnn.detect(frame)[0][0].astype(int)
+    image.crop(face_box).resize((224, 224))
+    ```
 
 ### Frame Sampling Strategy
 
 The `ACEDataset.__getitem__` method (`dataset.py:25`) implements a stride-based frame sampling:
 
-```python
+```python linenums="1" title="aceverify/dataset.py"
 num_output_frames = 16
 stride = 2
 indices = np.arange(0, num_output_frames * stride, stride)
@@ -459,76 +458,6 @@ if indices[-1] >= total_frames:
 ```
 
 This selects every 2nd frame from the first 32 frames of the processed clip, providing temporal coverage while maintaining consistency across samples.
-
----
-
-## Model Selection
-
-> **Sources**: `utilities/model.py`, `models/`, `frontend/app.py`
-
-The web application supports three model variants selectable at runtime:
-
-| Model Name (UI) | Class | Backbone | Input | Purpose |
-|---|---|---|---|---|
-| `EfficientNet-B4 (Fast)` | `DeepfakeEfficientNet` | `timm tf_efficientnet_b4` | `[B, 3, 224, 224]` | Fast spatial inference |
-| `XceptionNet (Accurate)` | `DeepfakeXception` | `timm xception` | `[B, 3, 224, 224]` | Accurate spatial inference |
-| `ACE.verify (Best)` | `ACEVerifyModel` | `ViT-B/16 + GRU + audio fusion` | `[B, C, T, H, W]` | Multimodal temporal inference |
-
-### Model Loading (`utilities/model.py:4`)
-
-```python
-@st.cache_resource
-def load_model(model_name):
-    if model_name == "ACE.verify (Best)":
-        model = torch.jit.load("data/trained_model_paths/aceverify_model1.pth",
-                               map_location="cpu")
-    elif model_name == "XceptionNet (Accurate)":
-        model = models.DeepfakeXception()
-    else:  # EfficientNet-B4
-        model = models.DeepfakeEfficientNet()
-    model.eval()
-    return model
-```
-
-**Key details**:
-- The ACE.verify model is loaded via `torch.jit.load` from a **TorchScript**-serialized checkpoint at `data/trained_model_paths/aceverify_model1.pth`.
-- Models are cached via `@st.cache_resource` to avoid reloading on each Streamlit rerun.
-- All models are set to `.eval()` mode immediately after loading.
-
-### Inference Dispatch (`frontend/app.py:255`)
-
-The web application dispatches inference differently based on the model and input type:
-
-```python
-if st.session_state.file_ext in image_exts:
-    # Image input
-    image_tensor = processor.extract_image(path)  # [1, C, H, W]
-    if "ACE.verify" in model_choice:
-        model_input = image_tensor.unsqueeze(2).repeat(1, 1, 32, 1, 1)  # Pseudo-clip
-        output = model(model_input)
-    else:
-        output = model(image_tensor).mean()
-
-elif st.session_state.file_ext in video_exts:
-    # Video input
-    frames = processor.extract_frames(path)  # [T, C, H, W]
-    if "ACE.verify" in model_choice:
-        model_input = frames.permute(1, 0, 2, 3).unsqueeze(0)  # [1, C, T, H, W]
-        output = model(model_input)
-    else:
-        # Use middle 5 frames for spatial models
-        t = frames.shape[0]
-        if t >= 5:
-            start = max(0, (t // 2) - 2)
-            spatial_input = frames[start:start+5]
-        else:
-            spatial_input = frames
-        output = model(spatial_input).mean()
-```
-
-**Notable behavior**:
-- For the ACE.verify model on image inputs, the single image is repeated as a 32-frame pseudo-clip to satisfy the model's temporal expectation.
-- Spatial models (EfficientNet, Xception) use the middle 5 frames averaged together for video inputs.
 
 ---
 
@@ -555,6 +484,18 @@ flowchart TD
     K --> L["Return PIL.Image RGB overlay"]
 ```
 
+The core CAM computation uses gradient-weighted activations from the last convolutional layer:
+
+$$
+\text{CAM}(x, y) = \text{ReLU}\!\left(\sum_{k=1}^{C} \alpha_k \cdot A_k(x, y)\right)
+$$
+
+where $A_k$ is the $k$-th feature map activation and $\alpha_k$ is the global average pooled gradient:
+
+$$
+\alpha_k = \frac{1}{Z} \sum_{x=1}^{H'} \sum_{y=1}^{W'} \frac{\partial y^c}{\partial A_k(x, y)}
+$$
+
 ### Implementation Details
 
 1. **Layer Selection**: The function searches the model hierarchy for the last `Conv2d` layer:
@@ -571,7 +512,7 @@ flowchart TD
    cam = F.relu(cam)
    ```
 
-3. **Normalization**: The CAM is min-max normalized to `[0, 1]`:
+3. **Normalization**: The CAM is min-max normalized to $[0, 1]$:
    ```python
    cam = (cam - cam.amin(dim=(2, 3), keepdim=True)) / \
          (cam.amax(dim=(2, 3), keepdim=True) - cam.amin(dim=(2, 3), keepdim=True) + 1e-8)
@@ -593,7 +534,7 @@ flowchart TD
 
 The `attention_map()` and `visualize_all_frames()` functions provide an alternative visualization based on ViT attention weights rather than gradient-weighted activations:
 
-```python
+```python linenums="1" title="src/attention_map.py"
 target_layer = model.video_model.blocks[-1].attn.qkv
 handle = target_layer.register_forward_hook(hook_fn)
 
@@ -613,11 +554,11 @@ cls_attn = attn[:, 0, 1:]
 mask = cls_attn[frame_idx].reshape(14, 14)
 ```
 
-**Key differences from Grad-CAM**:
-- Uses the ViT's native self-attention weights instead of gradient-weighted activations.
-- Focuses on the CLS token's attention to patch tokens.
-- The attention map is reshaped to a 14x14 grid (ViT-B/16 with 224x224 input produces 14x14 patches).
-- Applied with `cv2.applyColorMap` using `cv2.COLORMAP_JET` and a blend factor of 0.4 (heatmap) + 0.6 (original frame).
+!!! note "Key differences from Grad-CAM"
+    - Uses the ViT's native self-attention weights instead of gradient-weighted activations.
+    - Focuses on the CLS token's attention to patch tokens.
+    - The attention map is reshaped to a 14×14 grid (ViT-B/16 with 224×224 input produces 14×14 patches).
+    - Applied with `cv2.applyColorMap` using `cv2.COLORMAP_JET` and a blend factor of 0.4 (heatmap) + 0.6 (original frame).
 
 ---
 
@@ -625,11 +566,11 @@ mask = cls_attn[frame_idx].reshape(14, 14)
 
 > **Source**: `utilities/gradcam.py:154`
 
-### Region Score Extraction (`gradcam.py:154`)
+### Region Score Extraction
 
 The `region_scores_from_heatmap()` function decomposes a Grad-CAM heatmap into facial regions by averaging pixel intensities within predefined bounding boxes:
 
-```python
+```python linenums="1" title="utilities/gradcam.py"
 def region_scores_from_heatmap(heatmap_img):
     arr = np.array(heatmap_img.convert("RGB"))[:, :, 0].astype(np.float32) / 255.0
     h, w = arr.shape
@@ -639,49 +580,50 @@ def region_scores_from_heatmap(heatmap_img):
     chin       = arr[int(0.82*h):int(1.0*h),  int(0.25*w):int(0.75*w)].mean()
     return [
         ("Periocular", float(periocular)),
-        ("Mouth", float(mouth)),
-        ("Forehead", float(forehead)),
-        ("Chin", float(chin)),
+        ("Mouth",      float(mouth)),
+        ("Forehead",   float(forehead)),
+        ("Chin",       float(chin)),
     ]
 ```
 
 | Region | Y range | X range | Approx. facial area |
 |---|---|---|---|
-| Periocular | 15% &ndash; 45% | 20% &ndash; 80% | Eye/upper-nose region |
-| Mouth | 55% &ndash; 90% | 25% &ndash; 75% | Lower lip/chin area |
-| Forehead | 0% &ndash; 20% | 20% &ndash; 80% | Upper forehead/hairline |
-| Chin | 82% &ndash; 100% | 25% &ndash; 75% | Chin/jaw area |
+| Periocular | 15% &ndash; 45% | 20% &ndash; 80% | Eye / upper-nose region |
+| Mouth | 55% &ndash; 90% | 25% &ndash; 75% | Lower lip / chin area |
+| Forehead | 0% &ndash; 20% | 20% &ndash; 80% | Upper forehead / hairline |
+| Chin | 82% &ndash; 100% | 25% &ndash; 75% | Chin / jaw area |
 
-### Evidence Flag Derivation (`gradcam.py:168`)
+### Evidence Flag Derivation
 
 The `evidence_from_regions()` function maps region scores to interpretable manipulation evidence categories:
 
-```python
+```python linenums="1" title="utilities/gradcam.py"
 def evidence_from_regions(regions):
     d = {k: v for k, v in regions}
     return {
-        "Eye-blink anomaly":     min(1.0, d["Periocular"] * 1.10),
-        "Lip-sync mismatch":     min(1.0, d["Mouth"] * 1.10),
-        "Texture inconsistency": min(1.0, (d["Periocular"] + d["Forehead"]) / 2),
-        "Compression artifacts": min(1.0, (d["Forehead"] + d["Chin"]) / 2),
-        "Head-pose jitter":      min(1.0, (d["Periocular"] + d["Chin"]) / 2),
-        "Skin-tone boundary":    min(1.0, (d["Mouth"] + d["Chin"]) / 2),
+        "Eye-blink anomaly":      min(1.0, d["Periocular"] * 1.10),
+        "Lip-sync mismatch":      min(1.0, d["Mouth"] * 1.10),
+        "Texture inconsistency":  min(1.0, (d["Periocular"] + d["Forehead"]) / 2),
+        "Compression artifacts":  min(1.0, (d["Forehead"] + d["Chin"]) / 2),
+        "Head-pose jitter":       min(1.0, (d["Periocular"] + d["Chin"]) / 2),
+        "Skin-tone boundary":     min(1.0, (d["Mouth"] + d["Chin"]) / 2),
     }
 ```
 
 | Evidence Flag | Formula | Interpretation |
 |---|---|---|
 | Eye-blink anomaly | `Periocular × 1.10` | Unnatural blinking patterns (face swap) |
-| Lip-sync mismatch | `Mouth × 1.10` | Audio-video desync (lip-sync deepfakes) |
+| Lip-sync mismatch | `Mouth × 1.10` | Audio-video desynchronization (lip-sync deepfakes) |
 | Texture inconsistency | `(Periocular + Forehead) / 2` | Blending boundary artifacts |
 | Compression artifacts | `(Forehead + Chin) / 2` | Double-compression artifacts |
 | Head-pose jitter | `(Periocular + Chin) / 2` | Unstable head rotation |
 | Skin-tone boundary | `(Mouth + Chin) / 2` | Color mismatch at face boundaries |
 
-Each score is clamped to `[0, 1]` and mapped to a color-coded chip in the UI:
-- **Green** (< 35%): Low-risk evidence
-- **Amber** (35&ndash;60%): Uncertain evidence
-- **Red** (> 60%): High-risk evidence
+Each score is clamped to $[0, 1]$ and mapped to a color-coded chip in the UI:
+
+- ==**Green**== (< 35%): Low-risk evidence
+- ==**Amber**== (35%&ndash;60%): Uncertain evidence
+- ==**Red**== (> 60%): High-risk evidence
 
 ---
 
@@ -697,9 +639,9 @@ def get_fake_prob(output: torch.Tensor) -> float:
     return float(max(0.0, min(1.0, p)))
 ```
 
-1. The raw logit output is converted to a probability via the sigmoid function.
+1. The raw logit output is converted to a probability via the sigmoid function: $p = \sigma(z) = \frac{1}{1 + e^{-z}}$.
 2. Probabilities are averaged across all elements in the batch.
-3. The result is clamped to `[0.0, 1.0]`.
+3. The result is clamped to $[0.0, 1.0]$.
 
 ### Verdict & Confidence Display (`frontend/app.py:289`)
 
@@ -710,8 +652,8 @@ verdict = "LIKELY FAKE" if is_fake else "LIKELY AUTHENTIC"
 confidence = fake_prob if fake_prob > 0.5 else (1 - fake_prob)
 ```
 
-- **Verdict**: "LIKELY FAKE" if the fake probability exceeds the confidence threshold; "LIKELY AUTHENTIC" otherwise.
-- **Confidence**: The fake probability if > 0.5, else (1 - fake probability). This represents the model's certainty in its verdict.
+- **Verdict**: `"LIKELY FAKE"` if the fake probability exceeds the confidence threshold; `"LIKELY AUTHENTIC"` otherwise.
+- **Confidence**: The fake probability if $p > 0.5$, else $(1 - p)$. This represents the model's certainty in its verdict.
 
 ### Per-Frame Confidence Timeline (`frontend/app.py:313`)
 
@@ -736,18 +678,22 @@ Per-frame fake probabilities are interpolated to 56 segments for the timeline vi
 
 The `generate_timeline()` function creates a synthetic temporal fakeness timeline:
 
-```python
+```python linenums="1" title="utilities/timeline.py"
 def generate_timeline(duration_in_sec=30, n_segs=60):
-    base = np.random.beta(2, 5, n_segs)     # Low baseline scores (Beta(2,5) mean ≈ 0.29)
-    spike_idxs = random.sample(range(n_segs), k=min(8, n_segs // 4))  # ~25% of segments
+    base = np.random.beta(2, 5, n_segs)     # Low baseline scores
+    spike_idxs = random.sample(range(n_segs), k=min(8, n_segs // 4))
     for i in spike_idxs:
         base[i] = random.uniform(0.6, 0.98)  # High-risk spikes
     return base.tolist()
 ```
 
-- **Baseline distribution**: `Beta(α=2, β=5)` generates low scores (mean ≈ 0.29), representing mostly authentic content.
-- **Spike injection**: ~25% of segments are randomly replaced with high-risk scores (uniform 0.6&ndash;0.98).
-- **Segment count**: Default 60 segments per timeline.
+The baseline scores follow a Beta distribution:
+
+$$
+X \sim \text{Beta}(\alpha=2,\; \beta=5), \quad \mathbb{E}[X] = \frac{\alpha}{\alpha+\beta} = \frac{2}{7} \approx 0.29
+$$
+
+This generates predominantly low scores (representing mostly authentic content), with approximately 25% of segments replaced by high-risk spikes (uniform $[0.6, 0.98]$).
 
 ### Timeline Rendering (`timeline.py:19`)
 
@@ -756,28 +702,11 @@ The `render_timeline_html()` function generates an HTML timeline bar chart:
 | Element | Description |
 |---|---|
 | Bar height | `max(8, int(score * 56))` pixels |
-| Bar color | Red (> 65%), Amber (35&ndash;65%), Green (< 35%) |
+| Bar color | Red (> 65%), Amber (35%&ndash;65%), Green (< 35%) |
 | Bar opacity | 0.85 (semi-transparent) |
 | Tooltip | `t={i*duration/n}s  score={s:.2f}` |
 | Tick marks | 7 time markers evenly distributed |
 | Legend | High risk, Uncertain, Authentic |
-
-### Per-Frame Timeline in the Web App
-
-When the ACE.verify model detects fakeness in a video, per-frame probabilities are used to generate a more accurate temporal timeline:
-
-```python
-# From frontend/app.py:313
-if st.session_state.file_ext in video_exts and "ACE.verify" not in model_choice:
-    frame_probs = torch.sigmoid(output.float()).flatten().detach().cpu().numpy()
-    x_src = np.linspace(0, duration_in_sec, len(frame_probs))
-    x_dst = np.linspace(0, duration_in_sec, 56)
-    timeline_scores = np.interp(x_dst, x_src, frame_probs).tolist()
-else:
-    timeline_scores = [fake_prob] * 56
-```
-
-The interpolation maps per-frame probabilities to the 56-segment timeline, allowing the timeline visualization to reflect actual per-frame detection results.
 
 ---
 
@@ -791,23 +720,23 @@ The `evaluate()` function performs batch inference on an HDF5 test set:
 
 1. Loads an `ACEDataset` in non-training mode.
 2. Creates a `DataLoader` with `batch_size=8`, `num_workers=2`, `pin_memory=True`.
-3. Loads the model checkpoint (supports state-dict and dict-wrapped formats).
-4. Runs inference with `torch.no_grad()` and applies a sigmoid threshold of `0.5`.
+3. Loads the model checkpoint (supports both `state_dict` and dict-wrapped formats).
+4. Runs inference with `torch.no_grad()` and applies a sigmoid threshold of $0.5$.
 5. Exports predictions to CSV at `{checkpoint_path_without_ext}_eval.csv`.
 
 ### Benchmark Models
 
 | Script | Model | Description |
 |---|---|---|
-| `aceverify_test.py` | `ACEVerifyModel` | Benchmarks the full multimodal architecture (ViT-B/16 + GRU + audio fusion) |
-| `spatial2D_test.py` | `timm xception` + `timm efficientnet_b4` | Benchmarks 2D spatial baselines using per-frame classification with video-level mean aggregation |
-| `timeSformer_test.py` | `facebook/timesformer-base-finetuned-k400` | Benchmarks the TimeSformer video transformer baseline from Hugging Face |
+| `aceverify_test.py` | `ACEVerifyModel` | Full multimodal architecture (ViT-B/16 + GRU + audio fusion) |
+| `spatial2D_test.py` | `timm xception` + `timm efficientnet_b4` | 2D spatial baselines using per-frame classification with video-level mean aggregation |
+| `timeSformer_test.py` | `facebook/timesformer-base-finetuned-k400` | TimeSformer video transformer baseline from Hugging Face |
 
 ### Spatial Baseline Evaluation (`spatial2D_test.py`)
 
 The spatial baseline reshapes video frames for individual classification:
 
-```python
+```python linenums="1" title="evaluation/spatial2D_test.py"
 batch_size, c, f, h, w = videos.shape
 images = videos.permute(0, 2, 1, 3, 4).reshape(-1, c, h, w)  # [B*F, C, H, W]
 logits = baseline_model(images)

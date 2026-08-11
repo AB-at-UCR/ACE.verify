@@ -1,18 +1,18 @@
-# ACE.verify Wiki
+# ACE.verify Documentation
 
-> A multimodal deepfake detection platform combining Vision Transformers, temporal modeling, and audio spectrogram analysis with an interactive web interface.
+> :material-shield-check: **A multimodal deepfake detection platform** combining Vision Transformers, temporal modeling, and audio spectrogram analysis with an interactive web interface.
 
 ---
 
 ## Navigation Index
 
-| Wiki Page | Description |
+| Page | Description |
 |---|---|
-| [Architecture and Pipeline](Architecture-and-Pipeline) | Deep dive into the ML model architecture, video/audio processing pipeline, frame extraction, Grad-CAM generation, and confidence scoring. |
-| [UI and Frontend Components](UI-and-Frontend-Components) | Documentation of the Streamlit web interface, component hierarchy, responsive layout, session state management, and custom CSS design system. |
-| [API and Backend Reference](API-and-Backend-Reference) | Detailed reference for all CLI entrypoints, data structures (HDF5), model classes, evaluation scripts, and progress streaming. |
-| [Setup and Deployment](Setup-and-Deployment) | Developer and DevOps guide covering local setup, Conda/Docker environments, GPU/CUDA configuration, and Kubernetes/NRP deployment. |
-| [Troubleshooting and FAQ](Troubleshooting-and-FAQ) | Solutions to common setup issues, GPU/FFMPEG errors, file format problems, and frequently asked questions. |
+| [Architecture and Pipeline](Architecture-and-Pipeline.md) | :material-sitemap: Deep dive into the ML model architecture, video/audio processing pipeline, frame extraction, Grad-CAM generation, and confidence scoring. |
+| [UI and Frontend Components](UI-and-Frontend-Components.md) | :material-monitor-dashboard: Documentation of the Streamlit web interface, component hierarchy, responsive layout, session state management, and custom CSS design system. |
+| [API and Backend Reference](API-and-Backend-Reference.md) | :material-console: Detailed reference for all CLI entrypoints, data structures (HDF5), model classes, evaluation scripts, and progress streaming. |
+| [Setup and Deployment](Setup-and-Deployment.md) | :material-docker: Developer and DevOps guide covering local setup, Conda/Docker environments, GPU/CUDA configuration, and Kubernetes/NRP deployment. |
+| [Troubleshooting and FAQ](Troubleshooting-and-FAQ.md) | :material-help-circle: Solutions to common setup issues, GPU/FFMPEG errors, file format problems, and frequently asked questions. |
 
 ---
 
@@ -54,7 +54,7 @@ Shared helper modules used by both the training pipeline and web application.
 - **`preprocess.py`** &mdash; `FaceProcessor` class using MediaPipe Face Landmarker for face alignment. Computes affine transformation matrices based on eye corner positions to canonical coordinates. Provides `extract_image()`, `extract_frames()`, `get_face_count()`, and metadata extraction methods.
 - **`media_preview.py`** &mdash; `render_media_preview()` renders compact video/image previews inside the upload card using HTML iframes with custom controls (play/pause, seek, mute) and base64/static-URL fallback.
 - **`static_media.py`** &mdash; Static media storage and URL helpers. Handles upload file sanitization (path traversal prevention), collision-safe naming with UUID prefixes, MIME type patching for Streamlit static serving, and upload lifecycle management.
-- **`timeline.py`** &mdash; `generate_timeline()` generates a temporal fakeness timeline using a Beta distribution with random spikes. `render_timeline_html()` renders an HTML timeline with color-coded segments (red > 65%, amber 35-65%, green < 35%).
+- **`timeline.py`** &mdash; `generate_timeline()` generates a temporal fakeness timeline using a Beta distribution with random spikes. `render_timeline_html()` renders an HTML timeline with color-coded segments (red > 65%, amber 35&ndash;65%, green < 35%).
 - **`model.py`** &mdash; `load_model()` loads a model by name with JIT (TorchScript) support for the ACE.verify model. `get_fake_prob()` computes the sigmoid probability from a model output tensor.
 
 ### Evaluation & Benchmarking (`evaluation/`)
@@ -63,7 +63,7 @@ Standalone scripts for evaluating trained checkpoints and benchmarking against b
 
 - **`evaluate.py`** &mdash; Standalone evaluation script that loads a checkpoint, runs inference on an HDF5 test set, and saves predictions to CSV.
 - **`aceverify_test.py`** &mdash; Benchmarks the ACEVerifyModel (ViT-B/16 + GRU + audio fusion) against the test dataset.
-- **`spatial2D_test.py`** &mdash; Benchmarks 2D spatial baseline models (timm `xception` and `efficientnet_b4`) using per-frame classification.
+- **`spatial2D_test.py`** &mdash; Benchmarks 2D spatial baseline models (timm `xception` and `efficientnet_b4`) using per-frame classification with video-level mean aggregation.
 - **`timeSformer_test.py`** &mdash; Benchmarks the HuggingFace TimeSformer baseline (`facebook/timesformer-base-finetuned-k400`) for video classification.
 
 ### Model Wrappers (`models/`)
@@ -87,6 +87,6 @@ Kubernetes/NRP deployment manifests and helper scripts.
 
 ## Quick Links
 
-- [GitHub Repository](https://github.com/AB-at-UCR/ACE.verify)
-- [Dataset: Deepfake Detection Challenge](https://www.kaggle.com/competitions/deepfake-detection-challenge/data)
-- [Model Checkpoint on Google Drive](https://drive.google.com/file/d/1d3ln2laSfmXkKyXHZ1YhK_gb33nonaPO/view?usp=sharing)
+- :material-github: [GitHub Repository](https://github.com/AB-at-UCR/ACE.verify)
+- :material-database: [Dataset: Deepfake Detection Challenge](https://www.kaggle.com/competitions/deepfake-detection-challenge/data)
+- :material-google-drive: [Model Checkpoint on Google Drive](https://drive.google.com/file/d/1d3ln2laSfmXkKyXHZ1YhK_gb33nonaPO/view?usp=sharing)

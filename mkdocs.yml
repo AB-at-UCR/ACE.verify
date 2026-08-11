@@ -1,0 +1,127 @@
+# Configuration file for the MkDocs Material documentation builder.
+# Read The Docs will auto-detect this file and use it to build the docs.
+
+site_name: ACE.verify Documentation
+site_description: >-
+  A multimodal deepfake detection platform combining Vision Transformers,
+  temporal modeling, and audio spectrogram analysis with an interactive web interface.
+site_author: ACE.verify Contributors
+site_url: https://ab-at-ucr.github.io/ACE.verify/
+
+repo_name: AB-at-UCR/ACE.verify
+repo_url: https://github.com/AB-at-UCR/ACE.verify
+
+# ── Theme ────────────────────────────────────────────────────────────────────
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.tabs          # Top-level nav as tabs
+    - navigation.sections      # Group pages into sections in the sidebar
+    - navigation.expand        # Expand all sections by default
+    - navigation.indexes       # Attach index page to section
+    - navigation.top           # Show "back to top" button
+    - search.suggest           # Suggest search terms
+    - search.highlight         # Highlight search results
+    - search.share             # Shareable search links
+    - content.code.copy        # Copy-to-clipboard button on code blocks
+    - content.code.select      # Selectable line numbers
+    - content.code.annotate    # Code annotations (# (1))
+    - content.tabs.link        # Link all code tabs with the same label
+    - content.tooltips         # Rich tooltips for Markdown links
+    - content.action.edit      # "Edit this page" link
+    - content.action.view      # "View source" link
+    - toc.follow               # TOC follows the scroll position
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: amber
+      accent: deep orange
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: amber
+      accent: deep orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  icon:
+    logo: material/shield-check
+  favicon: assets/favicon.png
+
+# ── Extensions ───────────────────────────────────────────────────────────────
+markdown_extensions:
+  # Python Markdown
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+  # Python Markdown Extensions (PyMdown)
+  - pymdownx.arithmatex:       # MathJax for $...$ and $$...$$
+      generic: true
+  - pymdownx.betterem:         # Better emphasis (* ** _ __)
+      smart_enable: all
+  - pymdownx.caret             # Superscript (^text^) and underline
+  - pymdownx.details           # Collapsible admonition blocks (???)
+  - pymdownx.emoji:            # :emoji: and :material-icon: support
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:        # Syntax highlighting via Pygments
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite      # Inline code highlighting `#!python ...`
+  - pymdownx.keys              # Keyboard key styling: ++ctrl+alt+del++
+  - pymdownx.mark              # Highlighting: ==highlighted text==
+  - pymdownx.smartsymbols      # Auto-convert (c), (tm), -->, etc.
+  - pymdownx.snippets          # Include code from external files
+  - pymdownx.superfences:      # Extended fenced code blocks
+      custom_fences:
+        - name: mermaid        # Mermaid diagram support
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:           # Content tabs (=== "Tab")
+      alternate_style: true
+  - pymdownx.tasklist:         # Task lists with checkboxes: - [x]
+      custom_checkbox: true
+  - pymdownx.tilde             # Subscript: ~text~
+
+# ── Plugins ──────────────────────────────────────────────────────────────────
+plugins:
+  - search:
+      lang: en
+  - tags
+
+# ── Extra ────────────────────────────────────────────────────────────────────
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/AB-at-UCR/ACE.verify
+  generator: false
+
+# ── MathJax ──────────────────────────────────────────────────────────────────
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+# ── Navigation ───────────────────────────────────────────────────────────────
+nav:
+  - Home: Home.md
+  - Architecture and Pipeline: Architecture-and-Pipeline.md
+  - UI and Frontend Components: UI-and-Frontend-Components.md
+  - API and Backend Reference: API-and-Backend-Reference.md
+  - Setup and Deployment: Setup-and-Deployment.md
+  - Troubleshooting and FAQ: Troubleshooting-and-FAQ.md
