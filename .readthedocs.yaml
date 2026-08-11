@@ -9,9 +9,10 @@ build:
   tools:
     python: "3.11"
 
-# Build documentation with MkDocs
+# Build documentation with MkDocs Material
 mkdocs:
   configuration: mkdocs.yml
+  fail_on_warning: false
 
 # Python dependencies required to build the docs
 python:

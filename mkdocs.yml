@@ -119,7 +119,7 @@ extra_javascript:
 
 # ── Navigation ───────────────────────────────────────────────────────────────
 nav:
-  - Home: Home.md
+  - Home: index.md
   - Architecture and Pipeline: Architecture-and-Pipeline.md
   - UI and Frontend Components: UI-and-Frontend-Components.md
   - API and Backend Reference: API-and-Backend-Reference.md
