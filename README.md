@@ -1,48 +1,102 @@
-# ACE.verify
+<div align="center">
+  <h1>ACE.verify</h1>
 
-ACE.verify is a deepfake detection project for analyzing facial media with a multimodal (video + audio) model, preprocessing utilities, and an interactive deployed webapp. The repository includes the training pipeline, dataset preprocessing scripts, visualization helpers, and saved experiment artifacts for baseline and ablation runs.
+  <p align="center">
+    <img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-2.5.1-ee4c2c">
+    <img alt="Docker" src="https://img.shields.io/badge/Docker-CUDA%2012.4-2496ed">
+    <img alt="Status" src="https://img.shields.io/badge/status-beta-orange">
+    <a href="https://github.com/AB-at-UCR/ACE.verify/actions/workflows/docker-build.yml"><img alt="Build and Push Docker Image" src="https://github.com/AB-at-UCR/ACE.verify/actions/workflows/docker-build.yml/badge.svg"></a>
+  </p>
 
-## Overview
+  <p align="center">A multimodal deepfake detection platform that analyzes facial video and audio signals, generates Grad-CAM explainability overlays, and delivers real-time verdicts through an interactive web application.</p>
+</div>
 
-The project is organized around three core workflows:
+---
 
-1. Preprocess raw DFDC-style videos into HDF5 datasets with aligned face crops and audio features.
-2. Train and evaluate ACE.verify models on processed HDF5 data.
-3. Inspect predictions through a deployed webapp interface with Grad-CAM overlays and optional face-landmark visualization.
+## Key Features
 
-## Dataset
+- **Multimodal Deepfake Detection** &mdash; Combines a Vision Transformer (ViT-B/16) video backbone with a temporal GRU (Gated Recurrent Unit) and an EfficientNet-B0 audio spectrogram encoder to classify media as authentic or manipulated.
+- **Grad-CAM Explainability** &mdash; Generates attention heatmaps overlaid on input frames to reveal exactly which facial regions drive the model's prediction.
+- **Temporal Fakeness Timeline** &mdash; Renders a per-frame fakeness score bar chart so analysts can scrub through the video and pinpoint when manipulation occurs.
+- **Region-Based Evidence Scoring** &mdash; Decomposes Grad-CAM into facial regions (Periocular, Mouth, Forehead, Chin) and derives interpretable evidence flags (eye-blink anomaly, lip-sync mismatch, texture inconsistency, etc.).
+- **Model Switching** &mdash; Select between EfficientNet-B4 (Fast), XceptionNet (Accurate), and ACE.verify (Best) at inference time without retraining.
+- **Interactive Web UI** &mdash; A Streamlit application with a responsive two-column layout, custom CSS design system, media preview, confidence gauge, evidence chips, metadata table, and a frame inspector with a temporal scrubber.
+- **Example Media Library** &mdash; Ships with five preset deepfake samples (FaceSwap clip, Lip-sync fake, GAN portrait, Unauthentic news, Political speech) for immediate testing.
 
-The experiments in this repository were built around the Kaggle Deepfake Detection Challenge dataset:
+---
 
-[Deepfake Detection Challenge](https://www.kaggle.com/competitions/deepfake-detection-challenge/data)
+## Tech Stack
 
-The preprocessing pipeline expects raw videos and label metadata in the DFDC format, then converts them into HDF5 files for training and evaluation.
+| Category | Technology | Details |
+|---|---|---|
+| **Frontend** | Streamlit | Python web framework, custom CSS design system |
+| | CSS3 | Custom theme variables, flexbox layout, responsive breakpoints |
+| **Backend** | Python 3.10&ndash;3.12 | Application logic, CLI entrypoints |
+| | Streamlit Server | Port 8501, static file serving enabled |
+| **ML/CV Models** | PyTorch 2.5.1 | Core tensor operations, model training |
+| | timm | ViT-B/16, EfficientNet-B0/B4, XceptionNet backbones |
+| | torchvision | Image transforms, data augmentation |
+| | torchaudio | Mel-spectrogram computation |
+| | MediaPipe | Face landmark detection & alignment |
+| | facenet-pytorch (MTCNN) | Face detection during preprocessing |
+| | Hugging Face Transformers | TimeSformer baseline benchmarking |
+| **Infrastructure** | Docker (CUDA 12.4) | `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime` base |
+| | Kubernetes / NRP | GPU job templates, PVC storage |
+| | GitHub Actions | CI/CD pipeline for Docker image build & push |
+| | Conda | Environment management (`conda_env.yml`, `conda_env_new.yml`) |
 
-## Repository Layout
+---
 
-- `aceverify/`: training package, dataset definitions, preprocessing entry points, and model code.
-- `frontend/`: deployed webapp for interactive inference and visualization.
-- `models/`: model wrappers and backbone implementations used by the demo application.
-- `utilities/`: Grad-CAM, preprocessing helpers, timeline rendering, and shared model utilities.
-- `data/`: sample HDF5 files and trained checkpoints.
-- `scripts/`: notebooks, ablation outputs, and generated experiment artifacts.
-- `frontend/static/`: sample videos used by the demo, plus a runtime `uploads/` directory for user media served at `app/static/...`.
+## Architecture Overview
 
+```mermaid
+flowchart TD
+    subgraph Upload["Media Intake"]
+        A["User uploads video or image"] --> B["FaceProcessor: extract & align frames"]
+        B --> C["ImageNet-normalized tensor<br/>B x C x T x H x W"]
+    end
 
-## Requirements
+    subgraph Model["ACEVerifyModel"]
+        D["ViT-B/16 Video Backbone<br/>last 4 blocks trainable"] --> E["768-dim frame features"]
+        E --> F["Bi-GRU Temporal Layer<br/>768 -> 512 bidirectional"]
+        F --> G["TemporalAttentionPooling<br/>1024 -> 256"]
+        H["Mel-Spectrogram"] --> I["EfficientNet-B0 Audio Encoder<br/>1280 -> 256"]
+        G --> J["Fusion Gate<br/>gated multimodal unit"]
+        I --> J
+        J --> K["Classifier MLP<br/>1024 -> 512 -> 128 -> 1"]
+        K --> L["Raw logit"]
+    end
 
-- Python 3.10 or newer, up to Python 3.12 as declared in `pyproject.toml`.
-- `ffmpeg` available on your system `PATH` for preprocessing videos.
-- A working PyTorch installation compatible with your hardware.
+    subgraph Output["Detection & Visualization"]
+        L --> M["Sigmoid -> Fake Probability"]
+        M --> N["Verdict: AUTHENTIC / FAKE"]
+        B --> O["Grad-CAM Heatmap Overlay"]
+        M --> P["Temporal Fakeness Timeline"]
+        O --> Q["Region Evidence Flags"]
+    end
 
-The repository includes Conda environment files if you prefer managing dependencies through Conda:
+    C --> D
+    C --> H
+```
 
-- `conda_env.yml`
-- `conda_env_new.yml`
+The pipeline flows from media upload through face alignment, multimodal feature extraction (video + audio), gated fusion, and binary classification. Grad-CAM overlays and temporal scoring provide explainability alongside the final verdict.
 
-## Installation
+> For a comprehensive deep-dive into the ML pipeline, model architecture, and data flow, consult the **[GitHub Wiki](../../wiki)**.
 
-From a fresh clone, the simplest setup is:
+---
+
+## Quickstart Guide
+
+### Prerequisites
+
+- **Python** 3.10 or newer (up to 3.12)
+- **CUDA** 12.4 or compatible (optional; CPU works for inference)
+- **GPU** with at least 16&nbsp;GiB VRAM for training
+- **ffmpeg** installed and available on your `PATH`
+
+### Local Installation
+
+**Option 1: Conda (recommended)**
 
 ```bash
 conda env create -f conda_env_new.yml
@@ -50,75 +104,66 @@ conda activate aceverify
 pip install -e .
 ```
 
-If you are not using Conda, create a Python environment that satisfies the requirements in `pyproject.toml`, install the dependencies, and then install the project in editable mode with `pip install -e .`.
-
-## Docker
-
-The repository ships a CUDA-ready Dockerfile for local development and NRP-style deployment. It installs the project dependencies, exposes the Streamlit app on port 8501, and sets `PYTHONPATH=/workspace` so the package entrypoints and module imports work inside the container.
-
-Build the image from the repository root:
+**Option 2: Virtual environment**
 
 ```bash
-docker build -t aceverify:latest .
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
 ```
 
-Run the web app:
+The `pip install -e .` command reads `aceverify/pyproject.toml` and installs all dependencies along with the following CLI entrypoints:
+
+| Command | Description |
+|---|---|
+| `aceverify-preprocess` | Convert DFDC-style zip archives into HDF5 files |
+| `aceverify-train` | Train the ACEVerifyModel on processed HDF5 data |
+| `aceverify-evaluate` | Evaluate a trained checkpoint on test data |
+
+### Environment Variables
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `PYTHONPATH` | Module resolution inside Docker container | `/workspace` (set in Dockerfile) |
+| `FFMPEG_BIN` | Override path to ffmpeg executable | Resolved from `PATH` |
+| `CUDA_VISIBLE_DEVICES` | Restrict GPU visibility | All GPUs |
+
+### Running the Web App
 
 ```bash
-docker run --rm -it \
-	--gpus all \
-	-p 8501:8501 \
-	-v "$PWD":/workspace \
-	aceverify:latest
+streamlit run frontend/app.py
 ```
 
-That command starts Streamlit on `http://localhost:8501` and uses the current checkout as the working tree, so local edits are visible inside the container.
+The app starts on `http://localhost:8501`. Static file serving is configured in `.streamlit/config.toml` to deliver preset videos and user uploads at the `app/static/...` path.
 
-Run training inside the container:
+### Training
 
 ```bash
-docker run --rm -it \
-	--gpus all \
-	-v "$PWD":/workspace \
-	aceverify:latest \
-	aceverify-train \
-	--train_path /workspace/data/train_data-003.h5 \
-	--test_path /workspace/data/test_data.h5 \
-	--checkpoint-path /workspace/results/aceverify_final.pth
+aceverify-train \
+  --train_path data/train_data-003.h5 \
+  --test_path data/test_data.h5 \
+  --checkpoint-path results/aceverify_final.pth \
+  --epochs 10 \
+  --batch-size 8
 ```
 
-Run evaluation inside the container:
+Default hyperparameters (from `aceverify/train.py`):
+
+- Learning rate: `5e-5`
+- Optimizer: `AdamW` (weight_decay `1e-4`)
+- Loss: `BCEWithLogitsLoss` (pos_weight `2.0`)
+- Scheduler: `StepLR` (step_size `2`, gamma `0.5`)
+
+### Evaluation
 
 ```bash
-docker run --rm -it \
-	--gpus all \
-	-v "$PWD":/workspace \
-	aceverify:latest \
-	aceverify-evaluate \
-	--h5 /workspace/data/test_data.h5 \
-	--checkpoint /workspace/results/aceverify_final.pth
+aceverify-evaluate \
+  --h5 data/test_data.h5 \
+  --checkpoint results/aceverify_final.pth \
+  --batch-size 8
 ```
 
-Run preprocessing inside the container:
-
-```bash
-docker run --rm -it \
-	-v "$PWD":/workspace \
-	aceverify:latest \
-	aceverify-preprocess <zip_file> <subfolder> --output /workspace/data/processed_data.h5
-```
-
-If you are targeting NRP, build the image locally or in a registry-backed CI job, push it to your registry, and reference that image name in `assets/templates/nrp-gpu-job.yaml`.
-
-## Preprocessing Data
-
-The preprocessing entry point converts DFDC-style zip archives into HDF5 files by extracting frames, detecting faces, cropping to a consistent region, and storing paired video and audio data.
-
-```bash
-aceverify-preprocess <zip_file> <subfolder> --output processed_data.h5
-```
-
-Example:
+### Preprocessing
 
 ```bash
 aceverify-preprocess dfdc_train_part_00.zip dfdc_train_part_0 --output data/processed_data.h5
@@ -126,61 +171,88 @@ aceverify-preprocess dfdc_train_part_00.zip dfdc_train_part_0 --output data/proc
 
 Useful options:
 
-- `--temp-dir`: override the temporary extraction directory.
-- `--ffmpeg-bin`: point to a specific `ffmpeg` executable.
-- `--log-level`: set preprocessing verbosity.
+- `--temp-dir` &mdash; override the temporary extraction directory
+- `--ffmpeg-bin` &mdash; point to a specific `ffmpeg` executable
+- `--log-level` &mdash; set preprocessing verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`)
 
-## Training
+---
 
-The training pipeline expects separate HDF5 files for training and testing:
+## Repository Structure
 
-```bash
-aceverify-train --train_path data/train_data.h5 --test_path data/test_data.h5
+```
+ACE.verify/
+├── .github/workflows/         # CI/CD: Docker image build & push
+│   └── docker-build.yml
+├── .streamlit/                # Streamlit server configuration
+│   └── config.toml            # enableStaticServing = true
+├── aceverify/                 # Core training package (pip-installable)
+│   ├── __init__.py            # Package exports
+│   ├── pyproject.toml         # Package metadata, dependencies, CLI scripts
+│   ├── model.py               # ACEVerifyModel: ViT-B/16 + GRU + audio fusion
+│   ├── train.py               # Training loop, checkpointing, CLI entrypoint
+│   ├── dataset.py             # ACEDataset: HDF5-backed video+audio dataset
+│   ├── preprocess.py          # DFDC zip -> HDF5 preprocessing pipeline
+│   └── visualize_data.py      # Dataset sample visualization helper
+├── app/                       # Legacy Streamlit app (older API version)
+│   ├── streamlit_app.py
+│   └── services.py
+├── evaluation/                # Model evaluation & benchmarking
+│   ├── __init__.py
+│   ├── evaluate.py            # Standalone evaluation script
+│   ├── aceverify_test.py      # ACE.verify model benchmark
+│   ├── spatial2D_test.py      # Spatial (2D) baseline benchmarks (Xception, EffNet)
+│   └── timeSformer_test.py    # TimeSformer baseline benchmark
+├── frontend/                  # Production web application
+│   ├── __init__.py
+│   ├── app.py                 # Main Streamlit app (533 lines)
+│   ├── app.css                # Custom CSS design system (392 lines)
+│   └── static/                # Preset media & runtime upload storage
+│       ├── *.mp4              # Example deepfake videos
+│       ├── face-swap.png      # Example deepfake image
+│       └── uploads/           # User upload destination (gitignored)
+├── models/                    # Alternative model wrappers for the webapp
+│   ├── __init__.py            # Exports ACEVerifyIntegration, DeepfakeEfficientNet, DeepfakeXception
+│   ├── ace_verify.py          # ACEVerify integration model (TorchScript)
+│   ├── efficientnet.py        # DeepfakeEfficientNet (timm tf_efficientnet_b4)
+│   ├── xception.py            # DeepfakeXception (timm xception)
+│   └── face_landmarker.task   # MediaPipe Face Landmarker model file
+├── src/                       # Standalone attention map utilities
+│   └── attention_map.py       # ViT attention visualization & video prediction
+├── utilities/                 # Shared helper modules
+│   ├── __init__.py            # Package exports
+│   ├── gradcam.py             # Grad-CAM heatmap generation & region scoring
+│   ├── media_preview.py       # Media preview rendering for upload card
+│   ├── static_media.py        # Static file serving, upload handling, MIME patching
+│   ├── preprocess.py          # FaceProcessor: alignment, frame extraction, metadata
+│   ├── model.py               # Model loading utilities for the webapp
+│   └── timeline.py            # Temporal fakeness timeline rendering
+├── assets/templates/          # Kubernetes / NRP deployment manifests
+│   ├── nrp-pvc.yaml           # PersistentVolumeClaim (200Gi, rook-ceph-block)
+│   ├── nrp-gpu-job.yaml       # GPU training Job (RTX-A6000 node selector)
+│   └── nrp-sweep-job.yaml     # Hyperparameter sweep Job (4 parallel)
+├── scripts/                   # Deployment helpers & experiment notebooks
+│   ├── copy-to-pvc.sh         # Copy local files into a PVC
+│   ├── copy-from-pvc.sh       # Copy files out of a PVC
+│   └── *.ipynb                # Experiment & ablation notebooks
+├── results/                   # Generated experiment artifacts (PDFs, images)
+├── Dockerfile                 # CUDA 12.4 container image
+├── conda_env.yml              # Conda env (Python 3.13, minimal)
+├── conda_env_new.yml          # Conda env (Python 3.11, full ML stack)
+├── .dockerignore              # Docker build exclusions
+├── .gitignore                 # Git exclusions
+├── README.md                  # This file
+└── README_NRP.md              # NRP / Nautilus deployment guide
 ```
 
-Training uses the `ACEVerifyModel` architecture defined in `aceverify/model.py`, which combines a pretrained vision backbone with temporal sequence modeling for video-level classification.
+> For a detailed file-by-file breakdown, see the **[GitHub Wiki](../../wiki)**.
 
-The script saves the final checkpoint to `aceverify_final.pth` and writes per-epoch metrics to a matching CSV file.
+---
 
-## Visualization
+## Contributing
 
-To inspect dataset samples and verify preprocessing output, use the visualization helper:
+1. Fork the repository and create a feature branch (`git checkout -b feature/amazing-feature`).
+2. Ensure code passes existing tests and linting.
+3. Write clear commit messages following conventional commits.
+4. Open a Pull Request against the `main` branch.
 
-```bash
-python aceverify/visualize_data.py --h5 data/train_data.h5 --index 0
-```
-
-This displays sampled frames and the associated spectrogram for the selected record.
-
-## Deployed Webapp
-
-Launch the interactive app from the repository root:
-
-```bash
-streamlit run frontend/app.py
-```
-
-The demo supports:
-
-- Video and image uploads (persisted under `frontend/static/uploads/` and served at `app/static/uploads/...`).
-- Example media loaded from `frontend/static/`.
-- Model selection across EfficientNet-B4, XceptionNet, and ACE.verify variants.
-- Grad-CAM heatmaps and optional face-landmark overlays.
-
-Static serving must be enabled (see `.streamlit/config.toml`, or pass
-`--server.enableStaticServing=true`). Restart the Streamlit process after changing
-that setting so `/app/static/...` stops falling through to the SPA HTML shell.
-
-## Outputs and Artifacts
-
-- Trained checkpoints are stored under `data/trained_model_paths/` and `scripts/` for experiment-specific runs.
-- Ablation results, metric CSV files, and saved `.pth` weights are collected in `scripts/`.
-- Generated visualizations and temporary preprocessing files are kept outside version control or in the designated `temp` directory when preprocessing runs.
-
-## Notes
-
-- Run all commands from the repository root unless otherwise noted.
-- Ensure `ffmpeg` is installed before preprocessing video archives.
-- If you are using a GPU, install the PyTorch build that matches your CUDA stack.
-
-For questions about the original dataset, refer to the Kaggle competition page linked above.
+---
