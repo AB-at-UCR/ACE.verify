@@ -9,27 +9,27 @@
 ```mermaid
 flowchart TD
     subgraph DataPrep["Data Preparation"]
-        D1[DFDC-style zip archive] --> D2[preprocess.py<br/>aceverify-preprocess]
-        D2 --> D3[ffmpeg: extract 16 frames<br/>+ 0.5s audio clip]
-        D3 --> D4[MTCNN face detection<br/>crop + margin]
-        D4 --> D5[Save to HDF5<br/>video + audio datasets<br/>label attribute]
+        D1["DFDC-style zip archive"] --> D2["preprocess.py<br/>aceverify-preprocess"]
+        D2 --> D3["ffmpeg: extract 16 frames<br/>+ 0.5s audio clip"]
+        D3 --> D4["MTCNN face detection<br/>crop + margin"]
+        D4 --> D5["Save to HDF5<br/>video + audio datasets<br/>label attribute"]
     end
 
     subgraph Training["Training Pipeline"]
-        T1[Load HDF5 datasets<br/>train + test] --> T2[ACEDataset<br/>frame sampling + aug]
-        T2 --> T3[ACEVerifyModel<br/>forward pass]
-        T3 --> T4[BCEWithLogitsLoss<br/>pos_weight=2.0]
-        T4 --> T5[AdamW optimizer<br/>StepLR scheduler]
-        T5 --> T6[Save checkpoint<br/>+ metrics CSV]
+        T1["Load HDF5 datasets<br/>train + test"] --> T2["ACEDataset<br/>frame sampling + aug"]
+        T2 --> T3["ACEVerifyModel<br/>forward pass"]
+        T3 --> T4["BCEWithLogitsLoss<br/>pos_weight=2.0"]
+        T4 --> T5["AdamW optimizer<br/>StepLR scheduler"]
+        T5 --> T6["Save checkpoint<br/>+ metrics CSV"]
     end
 
     subgraph WebApp["Web Application"]
-        W1[User uploads media] --> W2[FaceProcessor<br/>extract + align frames]
-        W2 --> W3[Model inference<br/>EfficientNet-B4 / Xception<br/>ACE.verify]
-        W3 --> W4[Grad-CAM heatmap]
-        W3 --> W5[Temporal timeline]
-        W4 --> W6[Region evidence flags]
-        W3 --> W7[Verdict + Confidence]
+        W1["User uploads media"] --> W2["FaceProcessor<br/>extract + align frames"]
+        W2 --> W3["Model inference<br/>EfficientNet-B4 / Xception<br/>ACE.verify"]
+        W3 --> W4["Grad-CAM heatmap"]
+        W3 --> W5["Temporal timeline"]
+        W4 --> W6["Region evidence flags"]
+        W3 --> W7["Verdict + Confidence"]
     end
 
     D5 --> T1
@@ -55,18 +55,18 @@ The `ACEVerifyModel` is a multimodal architecture that fuses video frame feature
 ```mermaid
 flowchart LR
     subgraph Video["Video Branch"]
-        V1[Input: B×C×T×H×W] --> V2[Reshape: B×T × C×H×W]
+        V1["Input: B×C×T×H×W"] --> V2["Reshape: B×T × C×H×W"]
         V2 --> V3["ViT-B/16<br/>(timm: vit_base_patch16_224)<br/>pretrained, drop_path=0.1<br/>last 4 blocks trainable"]
-        V3 --> V4[768-dim frame features]
+        V3 --> V4["768-dim frame features"]
         V4 --> V5["Bi-GRU<br/>768 → 512, bidirectional"]
-        V5 --> V6[1024-dim temporal features]
+        V5 --> V6["1024-dim temporal features"]
         V6 --> V7["TemporalAttentionPooling<br/>1024 → 256"]
         V7 --> V8["Video Projection<br/>LayerNorm + Linear + GELU<br/>+ Dropout(0.2)<br/>256-dim"]
     end
 
     subgraph Audio["Audio Branch"]
-        A1[Input: Mel-spectrogram] --> A2["EfficientNet-B0<br/>(timm: tf_efficientnet_b0_ns)<br/>pretrained, in_chans=1"]
-        A2 --> A3[1280-dim features]
+        A1["Input: Mel-spectrogram"] --> A2["EfficientNet-B0<br/>(timm: tf_efficientnet_b0_ns)<br/>pretrained, in_chans=1"]
+        A2 --> A3["1280-dim features"]
         A3 --> A4["Audio Projection<br/>LayerNorm + Linear + GELU<br/>+ Dropout(0.2)<br/>256-dim"]
     end
 
@@ -75,7 +75,7 @@ flowchart LR
 
     F1 --> F2["Gated Multimodal Fusion<br/>video * gate + audio * (1-gate)<br/>+ video - audio + video * audio"]
     F2 --> C1["Classifier<br/>1024 → 512 → GELU → Dropout(0.4)<br/>→ 128 → GELU → Dropout(0.2)<br/>→ 1"]
-    C1 --> O1[Output: raw logit]
+    C1 --> O1["Output: raw logit"]
 ```
 
 ### Component Details
@@ -243,17 +243,17 @@ The preprocessing pipeline converts DFDC-style zip archives into HDF5 datasets s
 
 ```mermaid
 flowchart TD
-    A["Input: DFDC-style zip archive<br/>e.g., dfdc_train_part_00.zip"] --> B[Extract zip file list]
-    B --> C[Find JSON label file<br/>in archive]
-    C --> D[Parse label mappings<br/>filename -> FAKE/REAL]
-    D --> E[Filter .mp4 video files]
-    E --> F[For each video:]
+    A["Input: DFDC-style zip archive<br/>e.g., dfdc_train_part_00.zip"] --> B["Extract zip file list"]
+    B --> C["Find JSON label file<br/>in archive"]
+    C --> D["Parse label mappings<br/>filename -&gt; FAKE/REAL"]
+    D --> E["Filter .mp4 video files"]
+    E --> F["For each video:"]
     F --> G["Extract frames via ffmpeg<br/>-ss 00:00:05 (start at 5s)<br/>-frames:v 16 (16 frames)<br/>-q:v 2 (high quality)"]
     G --> H["Extract audio via ffmpeg<br/>-ss 00:00:05 (start at 5s)<br/>-t 0.5 (0.5 seconds)<br/>-acodec pcm_s16le"]
     H --> I["Face detection via MTCNN<br/>Iterate frames 1-16<br/>Expand bounding box: +/-80px x, +/-50px y"]
-    I --> J["Crop & resize all 16 frames<br/>to face_box, then 224x224"]
+    I --> J["Crop &amp; resize all 16 frames<br/>to face_box, then 224x224"]
     J --> K["Save to HDF5:<br/>video dataset (16 frames)<br/>audio dataset (0.5s clip)<br/>label attribute (0 or 1)"]
-    K --> L[Clean up temporary files]
+    K --> L["Clean up temporary files"]
 ```
 
 ### FFmpeg Frame Extraction (`preprocess.py:51`)
@@ -471,8 +471,8 @@ The `generate_gradcam()` function implements the Gradient-weighted Class Activat
 
 ```mermaid
 flowchart TD
-    A["Input tensor<br/>[B, C, H, W] or [B, C, T, H, W]"] --> B[If temporal: average frames<br/>→ [B, C, H, W]]
-    B --> C[Enable gradient on input tensor]
+    A["Input tensor<br/>[B, C, H, W] or [B, C, T, H, W]"] --> B["If temporal: average frames<br/>→ [B, C, H, W]"]
+    B --> C["Enable gradient on input tensor"]
     C --> D["Register forward_hook<br/>on last Conv2d layer<br/>→ captures activations"]
     D --> E["Register backward_hook<br/>on last Conv2d layer<br/>→ captures gradients"]
     E --> F["Forward pass:<br/>output = model(input_tensor)"]

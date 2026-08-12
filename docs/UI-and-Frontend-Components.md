@@ -120,10 +120,10 @@ stateDiagram-v2
     NoMedia --> ExampleSelected: User clicks example pill
     NoMedia --> UploadSelected: User uploads a file
     ExampleSelected --> UploadSelected: User uploads (clears example)
-    UploadSelected --> Analyzing: User clicks "Analyze"
-    ExampleSelected --> Analyzing: User clicks "Analyze"
+    UploadSelected --> Analyzing: User clicks Analyze
+    ExampleSelected --> Analyzing: User clicks Analyze
     Analyzing --> ResultsReady: Analysis completes successfully
-    ResultsReady --> NoMedia: User clicks "Clear & Reset"
+    ResultsReady --> NoMedia: User clicks Clear &amp; Reset
     ResultsReady --> Analyzing: User re-analyzes with new options
 ```
 

@@ -218,10 +218,10 @@ flowchart TD
     A[Developer] --> B[Build Docker image]
     B --> C[Push to container registry]
     C --> D["kubectl apply -f nrp-pvc.yaml<br/>(one-time)"]
-    D --> E[Stage code + data to PVC<br/>copy-to-pvc.sh]
+    D --> E["Stage code + data to PVC<br/>copy-to-pvc.sh"]
     E --> F["kubectl apply -f nrp-gpu-job.yaml"]
-    F --> G[GPU Job trains ACEVerifyModel<br/>RTX-A6000 node]
-    G --> H[Fetch results<br/>copy-from-pvc.sh]
+    F --> G["GPU Job trains ACEVerifyModel<br/>RTX-A6000 node"]
+    G --> H["Fetch results<br/>copy-from-pvc.sh"]
 ```
 
 ### Step 1: Create Persistent Volume Claim (One-Time)
@@ -399,7 +399,7 @@ flowchart LR
     A["Push to main<br/>or tag v*.*.*"] --> B[Checkout repository]
     B --> C[Set up Docker Buildx]
     C --> D["Log in to Docker Hub<br/>secrets.DOCKERHUB_USERNAME<br/>secrets.DOCKERHUB_TOKEN"]
-    D --> E[Extract metadata<br/>tags + labels]
+    D --> E["Extract metadata<br/>tags + labels"]
     E --> F["Build and push image<br/>to DOCKERHUB_USERNAME/ace_verify"]
 ```
 
