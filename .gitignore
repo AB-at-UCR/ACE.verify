@@ -10,3 +10,4 @@ __pycache__
 *.log
 frontend/static/uploads/*
 !frontend/static/uploads/.gitkeep
+results/

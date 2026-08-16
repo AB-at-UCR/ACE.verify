@@ -56,15 +56,20 @@ flowchart TD
         B --> C["ImageNet-normalized tensor<br/>B x C x T x H x W"]
     end
 
-    subgraph Model["ACEVerifyModel"]
-        D["ViT-B/16 Video Backbone<br/>last 4 blocks trainable"] --> E["768-dim frame features"]
-        E --> F["Bi-GRU Temporal Layer<br/>768 -> 512 bidirectional"]
-        F --> G["TemporalAttentionPooling<br/>1024 -> 256"]
-        H["Mel-Spectrogram"] --> I["EfficientNet-B0 Audio Encoder<br/>1280 -> 256"]
-        G --> J["Fusion Gate<br/>gated multimodal unit"]
+    subgraph Model["ACEVerifyModel (multi-domain)"]
+        D["ViT-B/16 Spatial Backbone<br/>last 4 blocks trainable"] --> E["patch tokens<br/>B*T x 196 x 768"]
+        E --> E2["PatchArtifactAttention<br/>pooled feat + per-patch artifact map"]
+        E2 --> G["TemporalCoherenceEncoder<br/>cross-frame attention + BiGRU -> 256"]
+        E --> R["PatchTemporalIncoherence<br/>frame-to-frame patch change -> 256"]
+        C2["DCT log-spectra + SRM residuals"] --> S["FrequencyStream<br/>band gating + CNN -> 256"]
+        H["Log-Mel Spectrogram"] --> I["EfficientNet-B0 Audio Encoder<br/>1280 -> 256"]
+        G --> J["ModalityFusion<br/>attention over modality tokens"]
+        R --> J
+        S --> J
         I --> J
-        J --> K["Classifier MLP<br/>1024 -> 512 -> 128 -> 1"]
-        K --> L["Raw logit"]
+        J --> K["LayerScale gate + spatial residual<br/>-> embedding 256"]
+        G --> K
+        K --> L["Classifier -> raw logit"]
     end
 
     subgraph Output["Detection & Visualization"]
@@ -76,10 +81,13 @@ flowchart TD
     end
 
     C --> D
+    C --> C2
     C --> H
 ```
 
-The pipeline flows from media upload through face alignment, multimodal feature extraction (video + audio), gated fusion, and binary classification. Grad-CAM overlays and temporal scoring provide explainability alongside the final verdict.
+The pipeline flows from media upload through face alignment, multi-domain feature extraction (spatial, frequency, motion, audio), attention fusion, and binary classification. The auxiliary streams are added to the spatial feature through a LayerScale gate rather than replacing it, so the pretrained backbone always keeps a direct path to the classifier. Grad-CAM overlays, the per-patch artifact map, and temporal scoring provide explainability alongside the final verdict.
+
+Pass `--model baseline` to any entry point to run the pre-enhancement architecture (ViT-B/16 + BiGRU + gated concat fusion) for comparison.
 
 > For a comprehensive deep-dive into the ML pipeline, model architecture, and data flow, consult the **[GitHub Wiki](../../wiki)**.
 

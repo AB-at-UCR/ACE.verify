@@ -1,18 +1,13 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: aceverify-sweep
+  name: aceverify-eval
   labels:
     user: abhar061
     project: aceverify
 spec:
-  completionMode: Indexed
-  completions: 4
-  # RWO block PVC cannot attach to 4 nodes at once. Use parallelism 1
-  # here; raise to 4 after cloning onto aceverify-fs-pvc (RWX).
-  parallelism: 1
-  backoffLimit: 6
-  activeDeadlineSeconds: 86400
+  backoffLimit: 2
+  activeDeadlineSeconds: 14400
   ttlSecondsAfterFinished: 86400
   template:
     metadata:
@@ -43,7 +38,15 @@ spec:
             - python
             - -u
             - -m
-            - aceverify.sweep_worker
+            - evaluation.evaluate
+            - --h5
+            - /workspace/data/test_data.h5
+            - --checkpoint
+            - /workspace/results/aceverify_final.pth
+            - --batch-size
+            - "8"
+            - --num-workers
+            - "0"
           volumeMounts:
             - mountPath: /workspace
               name: workspace
@@ -65,8 +68,6 @@ spec:
                   - key: nvidia.com/gpu.product
                     operator: In
                     values:
-                      # 24–48 GB is enough after PCM normalize + bf16 AMP
-                      # (local probe: batch 8 ≈ 3.7 GiB)
                       - NVIDIA-RTX-A6000
                       - NVIDIA-L40
                       - NVIDIA-L40S

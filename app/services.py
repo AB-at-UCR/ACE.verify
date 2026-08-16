@@ -11,7 +11,7 @@ import streamlit as st
 import gdown
 import cv2
 import matplotlib.pyplot as plt
-from aceverify.model import ACEVerifyModel
+from aceverify.model import load_from_checkpoint
 from aceverify.dataset import ACEDataset
 from src.attention_map import predict_video, attention_map
 
@@ -81,8 +81,10 @@ def load_model():
   if not os.path.exists(model_path):
     gdown.download(url, model_path, quiet=False, fuzzy=True)
   
-  model = ACEVerifyModel()
-  model.load_state_dict(torch.load(model_path, 'cpu'))
+  # The published checkpoint may predate the multi-domain architecture, so pick
+  # the class that matches the weights rather than assuming the current one.
+  model, architecture = load_from_checkpoint(model_path, map_location='cpu')
+  print(f'Loaded {architecture} architecture from {model_path}')
   model.eval()
 
   return model

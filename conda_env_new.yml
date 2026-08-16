@@ -3,8 +3,9 @@ channels:
   - defaults
   - pytorch
   - nvidia
+  - conda-forge
 dependencies:
-  - python=3.13
+  - python=3.11
   - pip
   - ipykernel
   - ipython
@@ -14,6 +15,11 @@ dependencies:
   - requests
   - tqdm
   - pyyaml
+  - pillow
+  - numpy
+  - scipy
+  - matplotlib
+  - h5py
   - pip:
       - torch
       - torchvision
@@ -21,16 +27,11 @@ dependencies:
       - facenet-pytorch
       - ffmpeg-python
       - huggingface-hub
-      - matplotlib
-      - numpy
       - scikit-learn
-      - scipy
       - timm
       - sqlalchemy
       - dataset
       - alembic
-      - pillow
       - opencv-python-headless
       - mediapipe
       - streamlit
-      - h5py

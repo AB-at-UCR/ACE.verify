@@ -6,9 +6,9 @@ NRP / Nautilus deployment notes
 2) Stage code + data into PVC:
    bash scripts/copy-to-pvc.sh ./ /workspace aceverify-pvc
 
-3) Build and push container image (example):
-   docker build -t your-registry/aceverify:latest .
-   docker push your-registry/aceverify:latest
+3) Build and push container image:
+   docker build -t adityabhardwaj24/aceverify:latest .
+   docker push adityabhardwaj24/aceverify:latest
 
 4) Launch training Job:
    kubectl apply -f assets/templates/nrp-gpu-job.yaml

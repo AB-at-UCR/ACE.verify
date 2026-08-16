@@ -3,22 +3,49 @@ kind: Job
 metadata:
   name: aceverify-train
 spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 172800
+  ttlSecondsAfterFinished: 86400
   template:
     spec:
       restartPolicy: Never
       containers:
         - name: aceverify
-          image: your-registry/aceverify:latest
+          image: adityabhardwaj24/ace_verify:latest
+          workingDir: /workspace
+          env:
+            - name: PYTHONPATH
+              value: /workspace
+            - name: PYTHONUNBUFFERED
+              value: "1"
           resources:
             requests:
               cpu: "4"
-              memory: "16Gi"
+              memory: "24Gi"
               nvidia.com/gpu: "1"
             limits:
               cpu: "4"
-              memory: "16Gi"
+              memory: "24Gi"
               nvidia.com/gpu: "1"
-          command: ["python", "-u", "aceverify/train.py", "--train_path", "/workspace/data/train.h5", "--test_path", "/workspace/data/test.h5", "--checkpoint-path", "/workspace/results/aceverify_final.pth"]
+          command:
+            - python
+            - -u
+            - -m
+            - aceverify.train
+            - --train_path
+            - /workspace/data/train_data.h5
+            - --test_path
+            - /workspace/data/test_data.h5
+            - --checkpoint-path
+            - /workspace/results/aceverify_final.pth
+            # 'enhanced' is the multi-domain model; pass 'baseline' to reproduce
+            # the pre-enhancement architecture.
+            - --model
+            - enhanced
+            - --epochs
+            - "10"
+            - --batch-size
+            - "8"
           volumeMounts:
             - mountPath: /workspace
               name: workspace
@@ -26,9 +53,22 @@ spec:
         - name: workspace
           persistentVolumeClaim:
             claimName: aceverify-pvc
-      nodeSelector:
-        nvidia.com/gpu.product: "NVIDIA-RTX-A6000"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nvidia.com/gpu.product
+                    operator: In
+                    values:
+                      # 48GB-class cards only: batch 8 x 16 frames through
+                      # ViT-B/16 OOMs on 24GB GPUs (observed on RTX 3090).
+                      # Measured peak for --model enhanced: ~7.2 GiB at batch 8,
+                      # ~13.7 GiB at batch 16, ~26 GiB at batch 48.
+                      - NVIDIA-RTX-A6000
+                      - NVIDIA-L40
+                      - NVIDIA-L40S
+                      - NVIDIA-A40
       tolerations:
         - key: "nvidia.com/gpu"
           operator: "Exists"
-  backoffLimit: 2
