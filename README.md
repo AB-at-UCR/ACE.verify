@@ -14,6 +14,8 @@
 <div align="center">
   <img alt="ACE.verify Demo" src="ace-verify-demo.gif" width="800">
 </div>
+<br>
+<p align="center"> Deployed app can be accessed at : https://abhar061-ace-verify.hf.space </p>
 
 ---
 
