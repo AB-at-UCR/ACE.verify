@@ -1,9 +1,29 @@
+---
+title: ACE.verify
+emoji: ☑️
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 8501
+python_version: "3.11"
+pinned: false
+suggested_hardware: t4-small
+startup_duration_timeout: 1h
+tags:
+  - streamlit
+  - deepfake-detection
+  - computer-vision
+  - pytorch
+short_description: Multimodal deepfake detector with Grad-CAM explainability
+---
+
 <div align="center">
   <h1>ACE.verify</h1>
 
   <p align="center">
     <img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-2.5.1-ee4c2c">
-    <img alt="Docker" src="https://img.shields.io/badge/Docker-CUDA%2012.4-2496ed">
+    <img alt="Hugging Face Spaces" src="https://img.shields.io/badge/%F0%9F%A4%97-Spaces-yellow">
+    <img alt="Docker" src="https://img.shields.io/badge/Docker-Spaces%20%7C%20CUDA%2012.4-2496ed">
     <img alt="Status" src="https://img.shields.io/badge/status-beta-orange">
     <a href="https://github.com/AB-at-UCR/ACE.verify/actions/workflows/docker-build.yml"><img alt="Build and Push Docker Image" src="https://github.com/AB-at-UCR/ACE.verify/actions/workflows/docker-build.yml/badge.svg"></a>
   </p>
@@ -40,7 +60,8 @@
 | | MediaPipe | Face landmark detection & alignment |
 | | facenet-pytorch (MTCNN) | Face detection during preprocessing |
 | | Hugging Face Transformers | TimeSformer baseline benchmarking |
-| **Infrastructure** | Docker (CUDA 12.4) | `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime` base |
+| **Infrastructure** | Hugging Face Spaces | Docker SDK, Streamlit on port 8501 |
+| | Docker (CUDA 12.4) | `Dockerfile.cuda` → `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime` |
 | | Kubernetes / NRP | GPU job templates, PVC storage |
 | | GitHub Actions | CI/CD pipeline for Docker image build & push |
 | | Conda | Environment management (`conda_env.yml`, `conda_env_new.yml`) |
@@ -104,7 +125,16 @@ Pass `--model baseline` to any entry point to run the pre-enhancement architectu
 
 ### Local Installation
 
-**Option 1: Conda (recommended)**
+**Option 1: Spaces-equivalent venv (recommended for the web app)**
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+streamlit run frontend/app.py
+```
+
+**Option 2: Conda (full training stack)**
 
 ```bash
 conda env create -f conda_env_new.yml
@@ -112,7 +142,7 @@ conda activate aceverify
 pip install -e .
 ```
 
-**Option 2: Virtual environment**
+**Option 3: Editable install from `pyproject.toml`**
 
 ```bash
 python -m venv .venv
@@ -120,7 +150,7 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-The `pip install -e .` command reads `aceverify/pyproject.toml` and installs all dependencies along with the following CLI entrypoints:
+`pip install -e .` reads `aceverify/pyproject.toml` and installs the training CLI entrypoints:
 
 | Command | Description |
 |---|---|
@@ -132,7 +162,7 @@ The `pip install -e .` command reads `aceverify/pyproject.toml` and installs all
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `PYTHONPATH` | Module resolution inside Docker container | `/workspace` (set in Dockerfile) |
+| `PYTHONPATH` | Module resolution inside Docker | `/app` (Spaces) or `/workspace` (`Dockerfile.cuda`) |
 | `FFMPEG_BIN` | Override path to ffmpeg executable | Resolved from `PATH` |
 | `CUDA_VISIBLE_DEVICES` | Restrict GPU visibility | All GPUs |
 
@@ -192,7 +222,7 @@ ACE.verify/
 ├── .github/workflows/         # CI/CD: Docker image build & push
 │   └── docker-build.yml
 ├── .streamlit/                # Streamlit server configuration
-│   └── config.toml            # enableStaticServing = true
+│   └── config.toml            # static serving + Spaces-safe server flags
 ├── aceverify/                 # Core training package (pip-installable)
 │   ├── __init__.py            # Package exports
 │   ├── pyproject.toml         # Package metadata, dependencies, CLI scripts
@@ -243,12 +273,15 @@ ACE.verify/
 │   ├── copy-from-pvc.sh       # Copy files out of a PVC
 │   └── *.ipynb                # Experiment & ablation notebooks
 ├── results/                   # Generated experiment artifacts (PDFs, images)
-├── Dockerfile                 # CUDA 12.4 container image
+├── Dockerfile                 # Hugging Face Spaces CPU + Streamlit image
+├── Dockerfile.cuda            # CUDA 12.4 image for local / NRP GPU work
+├── requirements.txt           # Space / Streamlit app Python dependencies
+├── packages.txt               # Apt packages for non-Docker Space runtimes
 ├── conda_env.yml              # Conda env (Python 3.13, minimal)
 ├── conda_env_new.yml          # Conda env (Python 3.11, full ML stack)
 ├── .dockerignore              # Docker build exclusions
 ├── .gitignore                 # Git exclusions
-├── README.md                  # This file
+├── README.md                  # This file (includes Spaces YAML frontmatter)
 └── README_NRP.md              # NRP / Nautilus deployment guide
 ```
 

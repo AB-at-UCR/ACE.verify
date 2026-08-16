@@ -13,6 +13,6 @@ def get_latest_github_release(owner, repo):
             releases = response.json()
             if releases:
                 return releases[0]  # Return the newest release dictionary
-        return None
+        return {}
     except Exception:
-        return None
+        return {}

@@ -1,55 +1,40 @@
-FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+# Hugging Face Spaces Streamlit image (CPU).
+# For local/NRP GPU training, use Dockerfile.cuda.
+FROM python:3.11-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PYTHONPATH=/workspace
+    PYTHONPATH=/app \
+    STREAMLIT_SERVER_HEADLESS=true \
+    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
-WORKDIR /workspace
+WORKDIR /app
 
-# Install system dependencies (including OpenCV & Mediapipe dependencies libgl1 and libglib2.0-0)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
         ffmpeg \
         git \
-        build-essential \
         libgl1 \
         libglib2.0-0 \
+        libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
+COPY requirements.txt ./
+RUN pip install --upgrade pip \
+    && pip install -r requirements.txt
+
 COPY .streamlit ./.streamlit
-COPY aceverify/pyproject.toml ./pyproject.toml
 COPY aceverify ./aceverify
-COPY evaluation ./evaluation
 COPY frontend ./frontend
 COPY models ./models
 COPY utilities ./utilities
-COPY README.md ./README.md
-COPY README_NRP.md ./README_NRP.md
-
-# Install Python dependencies with matching PyTorch ecosystem versions
-RUN pip install --upgrade pip \
-    && pip install \
-        numpy \
-        h5py \
-        timm \
-        scikit-learn \
-        matplotlib \
-        ffmpeg-python \
-        facenet-pytorch \
-        Pillow \
-        scipy \
-        streamlit \
-        opencv-python-headless \
-        mediapipe \
-        sqlalchemy \
-        dataset \
-        alembic \
-        torchaudio==2.5.1 \
-        torchvision==0.20.1 \
-    && pip install -e . --no-deps
 
 EXPOSE 8501
 
-CMD ["streamlit", "run", "frontend/app.py", "--server.address=0.0.0.0", "--server.port=8501", "--server.enableStaticServing=true"]
+HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+
+ENTRYPOINT ["streamlit", "run", "frontend/app.py", "--server.address=0.0.0.0", "--server.port=8501", "--server.enableStaticServing=true"]

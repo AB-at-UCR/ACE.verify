@@ -1,4 +1,11 @@
 [server]
+headless = true
+enableCORS = false
+enableXsrfProtection = false
 # Serve files in frontend/static/ (presets + uploads/) at <app-url>/app/static/...
 # Used by the upload-card media preview for low-latency same-origin playback.
 enableStaticServing = true
+# Do not set server.port — Hugging Face Spaces expects 8501.
+
+[browser]
+gatherUsageStats = false

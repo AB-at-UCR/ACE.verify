@@ -127,30 +127,60 @@ The web application should be available at `http://localhost:8501`.
 
 ---
 
+## Hugging Face Spaces
+
+> **Sources**: `README.md` (YAML frontmatter), `Dockerfile`, `requirements.txt`, `packages.txt`
+
+The Streamlit app deploys as a **Docker** Space (`sdk: docker`, `app_port: 8501`). Hugging Face builds the root `Dockerfile` (CPU Python 3.11 + Streamlit) and installs `requirements.txt`.
+
+1. Create a Space and choose the **Docker** SDK.
+2. Push this repository (or duplicate an existing Space).
+3. Confirm the Space README YAML includes `sdk: docker` and `app_port: 8501`.
+
+Local equivalent:
+
+```bash
+pip install -r requirements.txt
+streamlit run frontend/app.py
+```
+
+The CUDA training image lives in `Dockerfile.cuda` and is not used by the Space.
+
+---
+
 ## Docker Deployment
 
-> **Source**: `Dockerfile`
+> **Sources**: `Dockerfile` (Hugging Face Spaces, CPU), `Dockerfile.cuda` (local / NRP GPU)
 
 ### Dockerfile Overview
 
 | Stage | Details |
 |---|---|
-| **Base Image** | `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime` |
-| **System Dependencies** | `ffmpeg`, `git`, `build-essential`, `libgl1`, `libglib2.0-0` |
-| **Python Dependencies** | `numpy`, `h5py`, `timm`, `scikit-learn`, `matplotlib`, `ffmpeg-python`, `facenet-pytorch`, `Pillow`, `scipy`, `streamlit`, `opencv-python-headless`, `mediapipe`, `sqlalchemy`, `dataset`, `alembic`, `torchaudio==2.5.1`, `torchvision==0.20.1` |
-| **Copied Files** | `.streamlit/`, `aceverify/`, `evaluation/`, `frontend/`, `models/`, `utilities/`, `README.md`, `README_NRP.md` |
+| **Base Image (Spaces)** | `python:3.11-slim` |
+| **Base Image (CUDA)** | `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime` |
+| **System Dependencies** | `ffmpeg`, `git`, `build-essential`, `libgl1`, `libglib2.0-0`, `libgomp1`, `curl` |
+| **Python Dependencies (Spaces)** | `requirements.txt` (CPU PyTorch 2.5.1 + Streamlit app stack) |
+| **Copied Files (Spaces)** | `.streamlit/`, `aceverify/`, `frontend/`, `models/`, `utilities/` |
 | **Exposed Port** | `8501` |
 | **Entry Point** | `streamlit run frontend/app.py --server.address=0.0.0.0 --server.port=8501 --server.enableStaticServing=true` |
 
 ### Building the Image
 
 ```bash
-docker build -t aceverify:latest .
+# Hugging Face Spaces / local CPU web app
+docker build -t aceverify:space .
+
+# Local / NRP GPU training image
+docker build -f Dockerfile.cuda -t aceverify:latest .
 ```
 
 ### Running the Web Application
 
 ```bash
+# Spaces-equivalent CPU image
+docker run --rm -it -p 8501:8501 aceverify:space
+
+# CUDA image (NVIDIA Container Toolkit required)
 docker run --rm -it \
   --gpus all \
   -p 8501:8501 \
