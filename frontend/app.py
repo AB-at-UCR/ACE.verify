@@ -53,6 +53,10 @@ with open(Path(root_dir, "frontend", "app.css"), "r") as f:
 def load_model(model_name):
     return utilities.load_model(model_name)
 
+@st.cache_data(ttl=600) # NOTE: -> Caches the result for 10 minutes (600 seconds)
+def get_latest_github_release(owner, repo):
+    return utilities.get_latest_github_release(owner, repo)
+
 def generate_gradcam(model, input_tensor, target_layer=None, intensity=0.85):
     return utilities.generate_gradcam(model=model, input_tensor=input_tensor, target_layer=target_layer, intensity=intensity)
     
@@ -81,7 +85,15 @@ def clear_media_selection():
     st.session_state.active_static_url = None
 
 github_logo = "https://cdn-icons-png.flaticon.com/512/25/25231.png"
+mkdocs_logo = "https://upload.wikimedia.org/wikipedia/commons/d/dd/MkDocs_Logo.png"
 repo_url = "https://github.com/AB-at-UCR/ACE.verify"
+OWNER = "AB-at-UCR"
+REPO = "ACE.verify"
+latest_release = get_latest_github_release(OWNER, REPO)
+latest_version = latest_release.get("tag_name", "v1.0")
+latest_release_url = latest_release.get("html_url", "https://github.com/AB-at-UCR/ACE.verify/releases/latest")
+is_prerelease = latest_release.get("prerelease", True)
+docs_url = "https://ace-verify.readthedocs.io/en/latest/"
 image_exts = {".jpg", ".jpeg", ".png"}
 video_exts = {".mp4", ".mov", ".avi"}
 example_media = {
@@ -98,10 +110,10 @@ st.markdown(f"""
   <div class="navbar-brand">ACE<span>.verify</span></div>
   <span class="sparkle">✦</span>
   <div class="navbar-links">
-    <span class="nav-badge">BETA</span>
-    <span class="nav-link">v1.0</span>
+    <span class="nav-badge">{'BETA' if is_prerelease else ''}</span>
+    <span class="nav-link"><a href="{latest_release_url}" target="_blank">{latest_version}</a></span>
     <span class="nav-link"><a href="{repo_url}" target="_blank"><img src="{github_logo}" width="20" style="margin-right: 10px;">GitHub</a></span>
-    <span class="nav-link">Docs</span>
+    <span class="nav-link"><a href="{docs_url}" target="_blank"><img src="{mkdocs_logo}" width="20" style="margin-right: 10px;">Docs</a></span>
   </div>
 </div>
 """, unsafe_allow_html=True)

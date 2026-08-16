@@ -3,6 +3,7 @@ from .timeline import generate_timeline, render_timeline_html
 from .model import load_model, get_fake_prob
 from .preprocess import FaceProcessor
 from .media_preview import render_media_preview
+from .github_releases import get_latest_github_release
 from .static_media import (
     sanitize_filename,
     save_upload_bytes,
@@ -28,4 +29,5 @@ __all__ = [
     'static_url_for',
     'static_serving_enabled',
     'ensure_static_video_mime',
+    'get_latest_github_release',
 ]
