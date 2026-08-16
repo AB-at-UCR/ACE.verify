@@ -2,6 +2,7 @@ name: Sync to Hugging Face Hub
 on:
   push:
     branches: [feature/huggingface-space]
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
 jobs:
   sync:
     runs-on: ubuntu-latest
