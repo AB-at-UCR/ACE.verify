@@ -31,6 +31,12 @@ short_description: Multimodal deepfake detector with Grad-CAM explainability
   <p align="center">A multimodal deepfake detection platform that analyzes facial video and audio signals, generates Grad-CAM explainability overlays, and delivers real-time verdicts through an interactive web application.</p>
 </div>
 
+<div align="center">
+  <img alt="ACE.verify Demo" src="ace-verify-demo.gif" width="800">
+</div>
+<br>
+<p align="center"> Deployed app can be accessed at : https://abhar061-ace-verify.hf.space </p>
+
 ---
 
 ## Key Features
